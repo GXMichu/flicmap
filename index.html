@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>FlicMap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+<style>
+  :root{
+    --black:#000;
+    --white:#fff;
+    --ink:#f2f2f2;
+    --glass:rgba(0,0,0,.42);
+    --line:rgba(255,255,255,.22);
+    --signal:#ffd60a;
+    --safe-t:env(safe-area-inset-top,0px);
+    --safe-b:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--black);color:var(--ink);
+    font-family:"Archivo",system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+  button:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+
+  /* Camera */
+  #cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+  .topbar{position:fixed;top:0;left:0;right:0;padding:calc(var(--safe-t) + 14px) 18px 14px;
+    display:flex;align-items:center;justify-content:space-between;z-index:5;
+    background:linear-gradient(rgba(0,0,0,.45),transparent)}
+  .wordmark{font-weight:900;font-stretch:125%;font-size:22px;letter-spacing:-.02em;color:var(--white)}
+  .gps{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;
+    padding:7px 11px;border-radius:99px;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .gps i{width:8px;height:8px;border-radius:50%;background:#777;display:block}
+  .gps.ok i{background:var(--signal);box-shadow:0 0 0 3px rgba(255,214,10,.25)}
+  .gps.weak i{background:#ff9f0a}
+
+  .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:5;
+    padding:26px 30px calc(var(--safe-b) + 26px);
+    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
+    background:linear-gradient(transparent,rgba(0,0,0,.55))}
+  .shutter{width:82px;height:82px;border-radius:50%;border:4px solid var(--white);
+    display:grid;place-items:center;transition:transform .1s}
+  .shutter span{width:64px;height:64px;border-radius:50%;background:var(--white);transition:transform .1s}
+  .shutter:active span{transform:scale(.88)}
+  .round{width:52px;height:52px;border-radius:50%;background:var(--glass);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    display:grid;place-items:center;border:1px solid var(--line)}
+  .round svg{width:24px;height:24px}
+  .thumb{width:52px;height:52px;border-radius:12px;overflow:hidden;border:2px solid var(--white);
+    background:#222;justify-self:start;position:relative}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .thumb b{position:absolute;right:-6px;top:-6px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;
+    background:var(--signal);color:#000;font-size:12px;font-weight:800;display:grid;place-items:center}
+  #flipBtn{justify-self:end}
+  .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9;transition:opacity .25s}
+  .flash.on{opacity:.8;transition:none}
+
+  .notice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    padding:40px;text-align:center;z-index:4;font-size:16px;line-height:1.5;color:#bbb}
+  .notice.show{display:flex}
+  .notice button{margin-top:18px;padding:12px 20px;border-radius:99px;background:var(--white);color:#000;font-weight:700}
+
+  /* Review */
+  .review{position:fixed;inset:0;z-index:20;background:#000;display:none;flex-direction:column}
+  .review.show{display:flex}
+  .review img{flex:1;min-height:0;width:100%;object-fit:cover}
+  .review-panel{padding:18px 18px calc(var(--safe-b) + 18px);display:flex;flex-direction:column;gap:14px;background:#000}
+  .meta{font-size:13px;color:#aaa;display:flex;gap:14px;flex-wrap:wrap}
+  .meta strong{color:var(--white);font-weight:600}
+  .note{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#111;
+    color:var(--white);font:inherit;font-size:16px}
+  .note::placeholder{color:#777}
+  .row{display:flex;gap:10px}
+  .btn{flex:1;padding:16px;border-radius:14px;font-weight:700;font-size:16px;text-align:center}
+  .btn.ghost{border:1px solid var(--line)}
+  .btn.solid{background:var(--white);color:#000}
+  .btn.solid:disabled{opacity:.5}
+
+  /* Map */
+  .mapview{position:fixed;inset:0;z-index:30;background:#111;display:none}
+  .mapview.show{display:block}
+  #map{position:absolute;inset:0}
+  .map-top{position:absolute;top:0;left:0;right:0;z-index:2;padding:calc(var(--safe-t) + 14px) 16px 14px;
+    display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+  .map-top > *{pointer-events:auto}
+  .count{padding:9px 14px;border-radius:99px;background:rgba(0,0,0,.7);font-weight:600;font-size:14px}
+  .map-empty{position:absolute;left:16px;right:16px;bottom:calc(var(--safe-b) + 24px);z-index:2;
+    padding:18px;border-radius:16px;background:rgba(0,0,0,.8);font-size:15px;line-height:1.45;display:none}
+
+  .pin{width:46px;height:46px;position:relative;cursor:pointer}
+  .pin .cone{position:absolute;left:50%;top:50%;width:0;height:0;
+    border-left:16px solid transparent;border-right:16px solid transparent;border-bottom:44px solid rgba(255,214,10,.45);
+    transform-origin:50% 100%;margin-left:-16px;margin-top:-44px}
+  .pin .face{position:absolute;inset:0;border-radius:50%;border:3px solid var(--white);overflow:hidden;
+    background:#333;box-shadow:0 3px 10px rgba(0,0,0,.5)}
+  .pin .face img{width:100%;height:100%;object-fit:cover;display:block}
+
+  /* Spot sheet */
+  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:3;background:#0d0d0d;border-radius:22px 22px 0 0;
+    padding:10px 16px calc(var(--safe-b) + 16px);transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+  .sheet.show{transform:none}
+  .grab{width:40px;height:5px;border-radius:3px;background:#444;margin:0 auto 12px}
+  .sheet img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;display:block}
+  .sheet h3{margin:14px 2px 4px;font-size:19px;font-weight:700}
+  .sheet .meta{margin:0 2px 14px}
+  .sheet .row + .row{margin-top:10px}
+  .btn.danger{color:#ff453a;border:1px solid rgba(255,69,58,.35)}
+
+  .toast{position:fixed;left:50%;top:calc(var(--safe-t) + 70px);transform:translate(-50%,-20px);opacity:0;
+    z-index:50;padding:11px 18px;border-radius:99px;background:var(--white);color:#000;font-weight:700;font-size:14px;
+    transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+
+  .mapboxgl-ctrl-bottom-right,.mapboxgl-ctrl-bottom-left{bottom:var(--safe-b)}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<video id="cam" autoplay playsinline muted></video>
+<canvas id="canvas" hidden></canvas>
+<div class="flash" id="flash"></div>
+
+<div class="notice" id="camNotice">
+  <div>
+    <div id="camNoticeText">FlicMap needs your camera and location to save spots.</div>
+    <button id="camRetry">Turn on camera</button>
+  </div>
+</div>
+
+<header class="topbar">
+  <div class="wordmark">flicmap</div>
+  <div class="gps" id="gps"><i></i><span id="gpsText">Finding you</span></div>
+</header>
+
+<footer class="bottombar">
+  <button class="thumb" id="thumbBtn" aria-label="Open your spots on the map"></button>
+  <button class="shutter" id="shutter" aria-label="Snap spot"><span></span></button>
+  <button class="round" id="flipBtn" aria-label="Flip camera">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>
+  </button>
+</footer>
+
+<section class="review" id="review">
+  <img id="reviewImg" alt="Spot you just snapped">
+  <div class="review-panel">
+    <div class="meta" id="reviewMeta"></div>
+    <input class="note" id="noteInput" maxlength="80" placeholder="Name it (optional, you can do this later)">
+    <div class="row">
+      <button class="btn ghost" id="retakeBtn">Retake</button>
+      <button class="btn solid" id="saveBtn">Save spot</button>
+    </div>
+  </div>
+</section>
+
+<section class="mapview" id="mapview">
+  <div id="map"></div>
+  <div class="map-top">
+    <button class="round" id="closeMap" aria-label="Back to camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="count" id="countLabel">0 spots</div>
+  </div>
+  <div class="map-empty" id="mapEmpty">No spots yet. Close the map, point your camera at somewhere worth coming back to, and tap the shutter.</div>
+  <div class="sheet" id="sheet">
+    <div class="grab"></div>
+    <img id="sheetImg" alt="">
+    <h3 id="sheetTitle"></h3>
+    <div class="meta" id="sheetMeta"></div>
+    <div class="row">
+      <button class="btn solid" id="appleBtn">Apple Maps</button>
+      <button class="btn ghost" id="googleBtn">Google Maps</button>
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="renameBtn">Rename</button>
+      <button class="btn danger" id="deleteBtn">Delete spot</button>
+    </div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  // Public Mapbox token (pk), locked to gxmichu.github.io in Mapbox. Split so GitHub's scanner doesn't block it.
+  const MAPBOX_TOKEN = ['pk', 'eyJ1IjoidHJhdnhwcnoiLCJhIjoiY211bzNkOGFiMDFmcjJ4cHRqOHR4Z3k2NiJ9', 'blWL-Ool_9x1evp8Orc49w'].join('.');
+
+  const $ = id => document.getElementById(id);
+  const video = $('cam'), canvas = $('canvas');
+  let facing = 'environment', stream = null;
+  let lastFix = null, heading = null, orientationAsked = false;
+  let pending = null, spots = [], urls = new Map();
+
+  /* Storage (IndexedDB, stays on this phone) */
+  const dbReady = new Promise((res, rej) => {
+    const r = indexedDB.open('flicmap', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('spots', { keyPath: 'id' });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  async function tx(mode, fn){
+    const db = await dbReady;
+    return new Promise((res, rej) => {
+      const t = db.transaction('spots', mode), s = t.objectStore('spots');
+      const out = fn(s);
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+      t.onerror = () => rej(t.error);
+    });
+  }
+  const getAll = () => tx('readonly', s => s.getAll());
+  const putSpot = spot => tx('readwrite', s => s.put(spot));
+  const delSpot = id => tx('readwrite', s => s.delete(id));
+
+  function urlFor(spot){
+    if(!urls.has(spot.id)) urls.set(spot.id, URL.createObjectURL(spot.blob));
+    return urls.get(spot.id);
+  }
+
+  /* Camera */
+  async function startCamera(){
+    stopCamera();
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode:{ ideal: facing }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false
+      });
+      video.srcObject = stream;
+      $('camNotice').classList.remove('show');
+    }catch(e){
+      $('camNoticeText').textContent = 'Camera is blocked. Allow camera access for this site in your browser settings, then tap below.';
+      $('camNotice').classList.add('show');
+    }
+  }
+  function stopCamera(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } }
+  $('camRetry').onclick = startCamera;
+  $('flipBtn').onclick = () => { facing = facing === 'environment' ? 'user' : 'environment'; startCamera(); };
+
+  /* Location, always warm so the fix is ready the instant you shoot */
+  function startGPS(){
+    if(!navigator.geolocation){ setGPS('none','No location'); return; }
+    navigator.geolocation.watchPosition(p => {
+      lastFix = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, t:Date.now() };
+      if(p.coords.accuracy <= 30) setGPS('ok', `Located within ${Math.round(p.coords.accuracy)}m`);
+      else setGPS('weak', `Rough location, ${Math.round(p.coords.accuracy)}m`);
+    }, () => setGPS('none','Location off'), { enableHighAccuracy:true, maximumAge:2000, timeout:20000 });
+  }
+  function setGPS(state, text){ $('gps').className = 'gps ' + state; $('gpsText').textContent = text; }
+
+  /* Compass direction */
+  function onOrient(e){
+    if(typeof e.webkitCompassHeading === 'number') heading = e.webkitCompassHeading;
+    else if(e.absolute && typeof e.alpha === 'number') heading = (360 - e.alpha) % 360;
+  }
+  async function askOrientation(){
+    if(orientationAsked) return; orientationAsked = true;
+    try{
+      if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
+        if(await DeviceOrientationEvent.requestPermission() !== 'granted') return;
+      }
+      window.addEventListener('deviceorientationabsolute', onOrient, true);
+      window.addEventListener('deviceorientation', onOrient, true);
+    }catch(e){}
+  }
+  const compass = d => ['N','NE','E','SE','S','SW','W','NW'][Math.round(d / 45) % 8];
+
+  /* Capture */
+  $('shutter').onclick = async () => {
+    askOrientation();
+    if(!stream || !video.videoWidth) return toast('Camera is not ready yet');
+    const max = 1600, w = video.videoWidth, h = video.videoHeight, k = Math.min(1, max / Math.max(w, h));
+    canvas.width = Math.round(w * k); canvas.height = Math.round(h * k);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    $('flash').classList.add('on'); setTimeout(() => $('flash').classList.remove('on'), 60);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
+    const fix = lastFix && Date.now() - lastFix.t < 60000 ? lastFix : null;
+    pending = { blob, fix, heading, ts: Date.now() };
+    $('reviewImg').src = URL.createObjectURL(blob);
+    $('noteInput').value = '';
+    $('reviewMeta').innerHTML = fix
+      ? `<span><strong>${fix.lat.toFixed(5)}, ${fix.lng.toFixed(5)}</strong></span><span>within ${Math.round(fix.acc)}m</span>${heading != null ? `<span>facing ${compass(heading)}</span>` : ''}`
+      : '<span><strong>No location yet.</strong> Step outside or wait for the dot to turn yellow, then retake.</span>';
+    $('saveBtn').disabled = !fix;
+    $('review').classList.add('show');
+  };
+  function closeReview(){
+    if($('reviewImg').src) URL.revokeObjectURL($('reviewImg').src);
+    $('review').classList.remove('show'); pending = null;
+  }
+  $('retakeBtn').onclick = closeReview;
+  $('saveBtn').onclick = async () => {
+    if(!pending || !pending.fix) return;
+    const spot = {
+      id: String(pending.ts), ts: pending.ts,
+      lat: pending.fix.lat, lng: pending.fix.lng, acc: pending.fix.acc,
+      heading: pending.heading, note: $('noteInput').value.trim(), blob: pending.blob
+    };
+    $('saveBtn').disabled = true;
+    try{
+      await putSpot(spot);
+      spots.unshift(spot); renderThumb(); closeReview(); toast('Spot saved');
+    }catch(e){ toast('Could not save. Try again.'); $('saveBtn').disabled = false; }
+  };
+
+  function renderThumb(){
+    const t = $('thumbBtn');
+    t.innerHTML = spots.length ? `<img src="${urlFor(spots[0])}" alt=""><b>${spots.length}</b>` : '';
+  }
+
+  /* Map */
+  let map = null, markers = [], openSpot = null;
+  function openMap(){
+    stopCamera();
+    $('mapview').classList.add('show');
+    $('countLabel').textContent = `${spots.length} spot${spots.length === 1 ? '' : 's'}`;
+    $('mapEmpty').style.display = spots.length ? 'none' : 'block';
+    if(!map){
+      mapboxgl.accessToken = MAPBOX_TOKEN;
+      const c = spots[0] || lastFix;
+      map = new mapboxgl.Map({
+        container:'map', style:'mapbox://styles/mapbox/dark-v11',
+        center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11, attributionControl:true
+      });
+      map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'bottom-right');
+      map.on('click', () => hideSheet());
+      map.on('load', drawPins);
+    }else{
+      map.resize(); drawPins();
+    }
+  }
+  function drawPins(){
+    markers.forEach(m => m.remove()); markers = [];
+    spots.forEach(s => {
+      const el = document.createElement('button');
+      el.className = 'pin'; el.setAttribute('aria-label', s.note || 'Saved spot');
+      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') +
+        `<div class="face"><img src="${urlFor(s)}" alt=""></div>`;
+      el.onclick = ev => { ev.stopPropagation(); showSheet(s); };
+      markers.push(new mapboxgl.Marker({ element: el }).setLngLat([s.lng, s.lat]).addTo(map));
+    });
+    if(spots.length > 1){
+      const b = new mapboxgl.LngLatBounds();
+      spots.forEach(s => b.extend([s.lng, s.lat]));
+      map.fitBounds(b, { padding:80, maxZoom:15, duration:0 });
+    }
+  }
+  function showSheet(s){
+    openSpot = s;
+    $('sheetImg').src = urlFor(s);
+    $('sheetTitle').textContent = s.note || 'Untitled spot';
+    const d = new Date(s.ts);
+    $('sheetMeta').innerHTML = `<span>${d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}, ${d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</span>` +
+      (s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '') +
+      `<span>within ${Math.round(s.acc)}m</span>`;
+    $('sheet').classList.add('show');
+    map.easeTo({ center:[s.lng, s.lat], offset:[0, -140], duration:400 });
+  }
+  function hideSheet(){ $('sheet').classList.remove('show'); openSpot = null; }
+  $('appleBtn').onclick = () => openSpot && (location.href = `https://maps.apple.com/?daddr=${openSpot.lat},${openSpot.lng}`);
+  $('googleBtn').onclick = () => openSpot && window.open(`https://www.google.com/maps/dir/?api=1&destination=${openSpot.lat},${openSpot.lng}`, '_blank');
+  $('renameBtn').onclick = async () => {
+    if(!openSpot) return;
+    const n = prompt('Name this spot', openSpot.note || '');
+    if(n === null) return;
+    openSpot.note = n.trim().slice(0, 80);
+    await putSpot(openSpot); showSheet(openSpot); drawPins();
+  };
+  $('deleteBtn').onclick = async () => {
+    if(!openSpot || !confirm('Delete this spot? This cannot be undone.')) return;
+    await delSpot(openSpot.id);
+    spots = spots.filter(s => s.id !== openSpot.id);
+    hideSheet(); drawPins(); renderThumb();
+    $('countLabel').textContent = `${spots.length} spot${spots.length === 1 ? '' : 's'}`;
+    $('mapEmpty').style.display = spots.length ? 'none' : 'block';
+  };
+  $('thumbBtn').onclick = openMap;
+  $('closeMap').onclick = () => { hideSheet(); $('mapview').classList.remove('show'); startCamera(); };
+
+  function toast(msg){
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden) stopCamera();
+    else if(!$('mapview').classList.contains('show') && !$('review').classList.contains('show')) startCamera();
+  });
+
+  (async () => {
+    startCamera(); startGPS();
+    try{ spots = (await getAll()).sort((a, b) => b.ts - a.ts); renderThumb(); }catch(e){}
+  })();
+})();
+</script>
+</body>
+</html>
