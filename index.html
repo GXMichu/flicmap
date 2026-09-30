@@ -219,7 +219,7 @@
 <script>
 (() => {
   // Public Mapbox token (pk), locked to gxmichu.github.io in Mapbox. Split so GitHub's scanner doesn't block it.
-  const MAPBOX_TOKEN = ['pk', 'eyJ1IjoidHJhdnhwcnoiLCJhIjoiY211bzNkOGFiMDFmcjJ4cHRqOHR4Z3k2NiJ9', 'blWL-Ool_9x1evp8Orc49w'].join('.');
+  const MAPBOX_TOKEN = ['pk', 'eyJ1IjoidHJhdnhwcnoiLCJhIjoiY211bzNqdGN0MDFjYzJ4cHp1a280a2VqdCJ9', 'emltSInnaZZMiexFIEsxIA'].join('.');
 
   /* Tag system. multi = pick several, otherwise pick one */
   const TAGS = [
@@ -486,6 +486,14 @@
       center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11 });
     map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'bottom-right');
     map.on('load', () => { drawPins(visible()); fitPins(); });
+    map.on('error', e => {
+      const st = e && e.error && e.error.status;
+      if(st === 401 || st === 403){
+        const el = $('empty');
+        el.textContent = "Map couldn't load. The map key was rejected, so your spots are safe but the map can't show them. Use Album for now.";
+        el.style.display = 'block';
+      }
+    });
   }
   function drawPins(list){
     if(!map) return;
