@@ -13,112 +13,126 @@
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
 <style>
   :root{
-    --black:#000;
-    --white:#fff;
-    --ink:#f2f2f2;
-    --glass:rgba(0,0,0,.42);
-    --line:rgba(255,255,255,.22);
+    --white:#fff; --ink:#f2f2f2; --muted:#9a9a9a;
+    --glass:rgba(0,0,0,.42); --line:rgba(255,255,255,.2); --panel:#0d0d0d; --chip:#1b1b1b;
     --signal:#ffd60a;
-    --safe-t:env(safe-area-inset-top,0px);
-    --safe-b:env(safe-area-inset-bottom,0px);
+    --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;height:100%;background:var(--black);color:var(--ink);
-    font-family:"Archivo",system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
+  html,body{margin:0;height:100%;background:#000;color:var(--ink);font-family:"Archivo",system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
   button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
-  button:focus-visible{outline:2px solid var(--signal);outline-offset:3px}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
 
   /* Camera */
   #cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
-  .topbar{position:fixed;top:0;left:0;right:0;padding:calc(var(--safe-t) + 14px) 18px 14px;
-    display:flex;align-items:center;justify-content:space-between;z-index:5;
-    background:linear-gradient(rgba(0,0,0,.45),transparent)}
+  .topbar{position:fixed;top:0;left:0;right:0;z-index:5;padding:calc(var(--safe-t) + 14px) 18px 14px;
+    display:flex;align-items:center;justify-content:space-between;background:linear-gradient(rgba(0,0,0,.45),transparent)}
   .wordmark{font-weight:900;font-stretch:125%;font-size:22px;letter-spacing:-.02em;color:var(--white)}
-  .gps{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;
-    padding:7px 11px;border-radius:99px;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  .gps{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;padding:7px 11px;border-radius:99px;
+    background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
   .gps i{width:8px;height:8px;border-radius:50%;background:#777;display:block}
   .gps.ok i{background:var(--signal);box-shadow:0 0 0 3px rgba(255,214,10,.25)}
   .gps.weak i{background:#ff9f0a}
-
-  .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:5;
-    padding:26px 30px calc(var(--safe-b) + 26px);
-    display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-    background:linear-gradient(transparent,rgba(0,0,0,.55))}
-  .shutter{width:82px;height:82px;border-radius:50%;border:4px solid var(--white);
-    display:grid;place-items:center;transition:transform .1s}
+  .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:5;padding:8px 30px calc(var(--safe-b) + 22px);
+    display:grid;grid-template-columns:1fr auto 1fr;grid-template-areas:"hint hint hint" "l shutter r";row-gap:18px;align-items:center;
+    background:linear-gradient(transparent,rgba(0,0,0,.6))}
+  .pull{grid-area:hint;justify-self:center;display:flex;flex-direction:column;align-items:center;gap:4px;
+    font-size:13px;font-weight:600;color:var(--white);text-shadow:0 1px 6px rgba(0,0,0,.6);padding:6px 14px}
+  .pull svg{width:22px;height:22px;animation:nudge 2.4s ease-in-out infinite}
+  .pull b{color:var(--signal)}
+  @keyframes nudge{0%,70%,100%{transform:translateY(0)}80%{transform:translateY(-5px)}}
+  .shutter{grid-area:shutter;width:82px;height:82px;border-radius:50%;border:4px solid var(--white);display:grid;place-items:center}
   .shutter span{width:64px;height:64px;border-radius:50%;background:var(--white);transition:transform .1s}
   .shutter:active span{transform:scale(.88)}
-  .round{width:52px;height:52px;border-radius:50%;background:var(--glass);
-    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  .round{width:52px;height:52px;border-radius:50%;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
     display:grid;place-items:center;border:1px solid var(--line)}
   .round svg{width:24px;height:24px}
-  .thumb{width:52px;height:52px;border-radius:12px;overflow:hidden;border:2px solid var(--white);
-    background:#222;justify-self:start;position:relative}
-  .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-  .thumb b{position:absolute;right:-6px;top:-6px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;
-    background:var(--signal);color:#000;font-size:12px;font-weight:800;display:grid;place-items:center}
-  #flipBtn{justify-self:end}
+  #flipBtn{grid-area:r;justify-self:end}
   .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:9;transition:opacity .25s}
   .flash.on{opacity:.8;transition:none}
-
-  .notice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-    padding:40px;text-align:center;z-index:4;font-size:16px;line-height:1.5;color:#bbb}
+  .notice{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:40px;text-align:center;z-index:4;font-size:16px;line-height:1.5;color:#bbb}
   .notice.show{display:flex}
   .notice button{margin-top:18px;padding:12px 20px;border-radius:99px;background:var(--white);color:#000;font-weight:700}
 
-  /* Review */
-  .review{position:fixed;inset:0;z-index:20;background:#000;display:none;flex-direction:column}
+  /* Review and edit */
+  .review{position:fixed;inset:0;z-index:40;background:#000;display:none;flex-direction:column}
   .review.show{display:flex}
-  .review img{flex:1;min-height:0;width:100%;object-fit:cover}
-  .review-panel{padding:18px 18px calc(var(--safe-b) + 18px);display:flex;flex-direction:column;gap:14px;background:#000}
-  .meta{font-size:13px;color:#aaa;display:flex;gap:14px;flex-wrap:wrap}
+  .review > img{height:38vh;width:100%;object-fit:cover;flex:none}
+  .review-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 18px 8px}
+  .review-actions{flex:none;padding:12px 18px calc(var(--safe-b) + 14px);background:#000;border-top:1px solid #1a1a1a}
+  .meta{font-size:13px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap}
   .meta strong{color:var(--white);font-weight:600}
-  .note{width:100%;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#111;
-    color:var(--white);font:inherit;font-size:16px}
-  .note::placeholder{color:#777}
+  .note{width:100%;margin:14px 0 6px;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:#111;color:var(--white);font:inherit;font-size:16px}
+  .note::placeholder{color:#6f6f6f}
+  .group{margin-top:18px}
+  .group h4{margin:0 0 9px;font-size:15px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline}
+  .group h4 small{font-size:12px;font-weight:500;color:var(--muted)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{display:inline-flex;align-items:center;gap:7px;padding:9px 13px;border-radius:99px;background:var(--chip);
+    border:1px solid transparent;font-size:14px;font-weight:500;color:#ddd;white-space:nowrap}
+  .chip[aria-pressed="true"]{background:var(--white);color:#000;font-weight:700}
+  .chip .sw{width:14px;height:14px;border-radius:50%;border:1px solid rgba(255,255,255,.35);flex:none}
+  .chip[aria-pressed="true"] .sw{border-color:rgba(0,0,0,.3)}
   .row{display:flex;gap:10px}
   .btn{flex:1;padding:16px;border-radius:14px;font-weight:700;font-size:16px;text-align:center}
   .btn.ghost{border:1px solid var(--line)}
   .btn.solid{background:var(--white);color:#000}
-  .btn.solid:disabled{opacity:.5}
+  .btn.solid:disabled{opacity:.45}
+  .btn.danger{color:#ff453a;border:1px solid rgba(255,69,58,.35)}
 
-  /* Map */
-  .mapview{position:fixed;inset:0;z-index:30;background:#111;display:none}
-  .mapview.show{display:block}
+  /* Drawer (swipe up) */
+  .drawer{position:fixed;inset:0;z-index:30;background:var(--panel);transform:translateY(100%);
+    transition:transform .34s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column;will-change:transform}
+  .drawer.open{transform:none}
+  .dhead{flex:none;padding:calc(var(--safe-t) + 8px) 16px 10px;background:var(--panel);touch-action:none}
+  .grab{width:44px;height:5px;border-radius:3px;background:#444;margin:0 auto 12px}
+  .dbar{display:flex;align-items:center;gap:10px}
+  .seg{display:flex;background:#1b1b1b;border-radius:12px;padding:3px;flex:1;max-width:260px}
+  .seg button{flex:1;padding:9px 0;border-radius:9px;font-weight:700;font-size:14px;color:#aaa}
+  .seg button[aria-pressed="true"]{background:var(--white);color:#000}
+  .count{margin-left:auto;font-size:13px;color:var(--muted);font-weight:500}
+  .closeX{width:38px;height:38px;border-radius:50%;background:#1b1b1b;display:grid;place-items:center}
+  .closeX svg{width:18px;height:18px}
+  .filters{display:flex;gap:8px;overflow-x:auto;padding:12px 0 2px;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .filters .chip{padding:7px 11px;font-size:13px}
+  .filters:empty{display:none}
+  .dbody{flex:1;position:relative;min-height:0}
   #map{position:absolute;inset:0}
-  .map-top{position:absolute;top:0;left:0;right:0;z-index:2;padding:calc(var(--safe-t) + 14px) 16px 14px;
-    display:flex;justify-content:space-between;align-items:center;pointer-events:none}
-  .map-top > *{pointer-events:auto}
-  .count{padding:9px 14px;border-radius:99px;background:rgba(0,0,0,.7);font-weight:600;font-size:14px}
-  .map-empty{position:absolute;left:16px;right:16px;bottom:calc(var(--safe-b) + 24px);z-index:2;
-    padding:18px;border-radius:16px;background:rgba(0,0,0,.8);font-size:15px;line-height:1.45;display:none}
+  .album{position:absolute;inset:0;overflow-y:auto;padding:2px 2px calc(var(--safe-b) + 20px);display:none;
+    grid-template-columns:repeat(3,1fr);gap:2px;align-content:start}
+  .album.show{display:grid}
+  .album button{aspect-ratio:1;position:relative;overflow:hidden;background:#222}
+  .album img{width:100%;height:100%;object-fit:cover;display:block}
+  .album span{position:absolute;left:6px;bottom:6px;right:6px;font-size:11px;font-weight:700;color:#fff;text-align:left;
+    text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .empty{position:absolute;left:16px;right:16px;top:24px;z-index:2;padding:18px;border-radius:16px;background:rgba(0,0,0,.85);
+    font-size:15px;line-height:1.45;display:none}
 
   .pin{width:46px;height:46px;position:relative;cursor:pointer}
-  .pin .cone{position:absolute;left:50%;top:50%;width:0;height:0;
-    border-left:16px solid transparent;border-right:16px solid transparent;border-bottom:44px solid rgba(255,214,10,.45);
-    transform-origin:50% 100%;margin-left:-16px;margin-top:-44px}
-  .pin .face{position:absolute;inset:0;border-radius:50%;border:3px solid var(--white);overflow:hidden;
-    background:#333;box-shadow:0 3px 10px rgba(0,0,0,.5)}
+  .pin .cone{position:absolute;left:50%;top:50%;width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;
+    border-bottom:44px solid rgba(255,214,10,.45);transform-origin:50% 100%;margin-left:-16px;margin-top:-44px}
+  .pin .face{position:absolute;inset:0;border-radius:50%;border:3px solid var(--white);overflow:hidden;background:#333;box-shadow:0 3px 10px rgba(0,0,0,.5)}
   .pin .face img{width:100%;height:100%;object-fit:cover;display:block}
 
   /* Spot sheet */
-  .sheet{position:absolute;left:0;right:0;bottom:0;z-index:3;background:#0d0d0d;border-radius:22px 22px 0 0;
-    padding:10px 16px calc(var(--safe-b) + 16px);transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:35;background:#111;border-radius:22px 22px 0 0;max-height:88vh;overflow-y:auto;
+    padding:10px 16px calc(var(--safe-b) + 16px);transform:translateY(105%);transition:transform .28s cubic-bezier(.2,.8,.2,1);
+    box-shadow:0 -10px 40px rgba(0,0,0,.6)}
   .sheet.show{transform:none}
-  .grab{width:40px;height:5px;border-radius:3px;background:#444;margin:0 auto 12px}
   .sheet img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;display:block}
-  .sheet h3{margin:14px 2px 4px;font-size:19px;font-weight:700}
-  .sheet .meta{margin:0 2px 14px}
+  .sheet h3{margin:14px 2px 4px;font-size:20px;font-weight:700}
+  .sheet .meta{margin:0 2px 12px}
+  .sheet .chips{margin:0 0 14px}
+  .sheet .chips .chip{padding:6px 10px;font-size:13px}
   .sheet .row + .row{margin-top:10px}
-  .btn.danger{color:#ff453a;border:1px solid rgba(255,69,58,.35)}
+  .scrim{position:fixed;inset:0;z-index:34;background:rgba(0,0,0,.4);display:none}
+  .scrim.show{display:block}
 
-  .toast{position:fixed;left:50%;top:calc(var(--safe-t) + 70px);transform:translate(-50%,-20px);opacity:0;
-    z-index:50;padding:11px 18px;border-radius:99px;background:var(--white);color:#000;font-weight:700;font-size:14px;
-    transition:.25s;pointer-events:none}
+  .toast{position:fixed;left:50%;top:calc(var(--safe-t) + 70px);transform:translate(-50%,-20px);opacity:0;z-index:60;
+    padding:11px 18px;border-radius:99px;background:var(--white);color:#000;font-weight:700;font-size:14px;transition:.25s;pointer-events:none}
   .toast.show{opacity:1;transform:translate(-50%,0)}
-
-  .mapboxgl-ctrl-bottom-right,.mapboxgl-ctrl-bottom-left{bottom:var(--safe-b)}
-  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
@@ -127,12 +141,10 @@
 <canvas id="canvas" hidden></canvas>
 <div class="flash" id="flash"></div>
 
-<div class="notice" id="camNotice">
-  <div>
-    <div id="camNoticeText">FlicMap needs your camera and location to save spots.</div>
-    <button id="camRetry">Turn on camera</button>
-  </div>
-</div>
+<div class="notice" id="camNotice"><div>
+  <div id="camNoticeText">FlicMap needs your camera and location to save spots.</div>
+  <button id="camRetry">Turn on camera</button>
+</div></div>
 
 <header class="topbar">
   <div class="wordmark">flicmap</div>
@@ -140,47 +152,65 @@
 </header>
 
 <footer class="bottombar">
-  <button class="thumb" id="thumbBtn" aria-label="Open your spots on the map"></button>
+  <button class="pull" id="pullBtn" aria-label="Open your spots">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+    <span id="pullText">Swipe up for your spots</span>
+  </button>
   <button class="shutter" id="shutter" aria-label="Snap spot"><span></span></button>
   <button class="round" id="flipBtn" aria-label="Flip camera">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"/><path d="M3 21v-5h5"/></svg>
   </button>
 </footer>
 
-<section class="review" id="review">
-  <img id="reviewImg" alt="Spot you just snapped">
-  <div class="review-panel">
-    <div class="meta" id="reviewMeta"></div>
-    <input class="note" id="noteInput" maxlength="80" placeholder="Name it (optional, you can do this later)">
-    <div class="row">
-      <button class="btn ghost" id="retakeBtn">Retake</button>
-      <button class="btn solid" id="saveBtn">Save spot</button>
+<section class="drawer" id="drawer" aria-label="Your spots">
+  <div class="dhead" id="dhead">
+    <div class="grab"></div>
+    <div class="dbar">
+      <div class="seg" role="group" aria-label="View">
+        <button id="segMap" aria-pressed="true">Map</button>
+        <button id="segAlbum" aria-pressed="false">Album</button>
+      </div>
+      <div class="count" id="countLabel">0 spots</div>
+      <button class="closeX" id="closeDrawer" aria-label="Back to camera">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
     </div>
+    <div class="filters" id="filters"></div>
+  </div>
+  <div class="dbody">
+    <div id="map"></div>
+    <div class="album" id="album"></div>
+    <div class="empty" id="empty"></div>
   </div>
 </section>
 
-<section class="mapview" id="mapview">
-  <div id="map"></div>
-  <div class="map-top">
-    <button class="round" id="closeMap" aria-label="Back to camera">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-    </button>
-    <div class="count" id="countLabel">0 spots</div>
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <img id="sheetImg" alt="">
+  <h3 id="sheetTitle"></h3>
+  <div class="meta" id="sheetMeta"></div>
+  <div class="chips" id="sheetTags"></div>
+  <div class="row">
+    <button class="btn solid" id="appleBtn">Apple Maps</button>
+    <button class="btn ghost" id="googleBtn">Google Maps</button>
   </div>
-  <div class="map-empty" id="mapEmpty">No spots yet. Close the map, point your camera at somewhere worth coming back to, and tap the shutter.</div>
-  <div class="sheet" id="sheet">
-    <div class="grab"></div>
-    <img id="sheetImg" alt="">
-    <h3 id="sheetTitle"></h3>
-    <div class="meta" id="sheetMeta"></div>
-    <div class="row">
-      <button class="btn solid" id="appleBtn">Apple Maps</button>
-      <button class="btn ghost" id="googleBtn">Google Maps</button>
-    </div>
-    <div class="row">
-      <button class="btn ghost" id="renameBtn">Rename</button>
-      <button class="btn danger" id="deleteBtn">Delete spot</button>
-    </div>
+  <div class="row">
+    <button class="btn ghost" id="editBtn">Edit tags</button>
+    <button class="btn danger" id="deleteBtn">Delete</button>
+  </div>
+</div>
+
+<section class="review" id="review">
+  <img id="reviewImg" alt="">
+  <div class="review-scroll">
+    <div class="meta" id="reviewMeta"></div>
+    <input class="note" id="noteInput" maxlength="80" placeholder="Name it (optional)">
+    <div id="tagPanel"></div>
+  </div>
+  <div class="review-actions row">
+    <button class="btn ghost" id="cancelBtn">Retake</button>
+    <button class="btn solid" id="saveBtn">Save spot</button>
   </div>
 </section>
 
@@ -191,46 +221,76 @@
   // Public Mapbox token (pk), locked to gxmichu.github.io in Mapbox. Split so GitHub's scanner doesn't block it.
   const MAPBOX_TOKEN = ['pk', 'eyJ1IjoidHJhdnhwcnoiLCJhIjoiY211bzNkOGFiMDFmcjJ4cHRqOHR4Z3k2NiJ9', 'blWL-Ool_9x1evp8Orc49w'].join('.');
 
-  const $ = id => document.getElementById(id);
-  const video = $('cam'), canvas = $('canvas');
-  let facing = 'environment', stream = null;
-  let lastFix = null, heading = null, orientationAsked = false;
-  let pending = null, spots = [], urls = new Map();
+  /* Tag system. multi = pick several, otherwise pick one */
+  const TAGS = [
+    { key:'color', label:'Colors', multi:true, options:[
+      ['red','Red','#e5383b'],['orange','Orange','#f77f00'],['yellow','Yellow','#ffd60a'],['green','Green','#2d9d4f'],
+      ['blue','Blue','#2f6fed'],['purple','Purple','#8e44ad'],['pink','Pink','#ff70a6'],['brown','Brown','#8b5a2b'],
+      ['black','Black','#000'],['white','White','#fff'],['gray','Gray','#8a8a8a'],['multi','Multicolor','conic-gradient(#e5383b,#ffd60a,#2d9d4f,#2f6fed,#8e44ad,#e5383b)']
+    ]},
+    { key:'surface', label:'Wall and area', multi:true, options:[
+      ['brick','Brick'],['concrete','Concrete'],['mural','Mural'],['graffiti','Graffiti'],['wood','Wood'],['metal','Metal'],
+      ['stone','Stone'],['glass','Glass'],['greenery','Greenery'],['water','Water'],['alley','Alley'],['stairs','Stairs'],
+      ['rooftop','Rooftop'],['street','Street'],['field','Open field'],['industrial','Industrial'],['storefront','Storefront']
+    ]},
+    { key:'footwear', label:'Footwear', options:[
+      ['anyshoes','Any shoes work'],['sneakers','Sneakers ok'],['boots','Boots better'],['muddy','Gets muddy'],
+      ['wet','Wet ground'],['rough','Rough or rocky'],['nowhites','Skip white shoes']
+    ]},
+    { key:'movement', label:'Foot traffic', options:[
+      ['still','Dead quiet'],['some','Some people'],['busy','Busy'],['cars','Cars passing']
+    ]},
+    { key:'visibility', label:'How public', options:[
+      ['hidden','Hidden'],['semi','Semi public'],['public','Very public']
+    ]}
+  ];
+  const OPT = {};
+  TAGS.forEach(g => g.options.forEach(([id, name, sw]) => OPT[g.key + ':' + id] = { group:g.key, name, sw }));
+  const emptyTags = () => ({ color:[], surface:[], footwear:null, movement:null, visibility:null });
+  const flatTags = t => {
+    if(!t) return [];
+    const out = [];
+    TAGS.forEach(g => { const v = t[g.key]; (g.multi ? (v || []) : (v ? [v] : [])).forEach(id => out.push(g.key + ':' + id)); });
+    return out;
+  };
+  const chipHTML = (k, pressed, tag) => {
+    const o = OPT[k]; if(!o) return '';
+    const sw = o.sw ? `<i class="sw" style="background:${o.sw}"></i>` : '';
+    return `<${tag||'button'} class="chip" data-k="${k}" ${pressed != null ? `aria-pressed="${pressed}"` : ''}>${sw}${o.name}</${tag||'button'}>`;
+  };
 
-  /* Storage (IndexedDB, stays on this phone) */
+  const $ = id => document.getElementById(id);
+  const video = $('cam'), canvas = $('canvas'), drawer = $('drawer');
+  let facing = 'environment', stream = null, lastFix = null, heading = null, orientationAsked = false;
+  let spots = [], urls = new Map();
+  let editing = null; // { mode:'new'|'edit', spot, tags }
+  let view = 'map', filters = new Set(), openSpot = null;
+
+  /* Storage */
   const dbReady = new Promise((res, rej) => {
     const r = indexedDB.open('flicmap', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('spots', { keyPath: 'id' });
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
+    r.onupgradeneeded = () => r.result.createObjectStore('spots', { keyPath:'id' });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
   async function tx(mode, fn){
     const db = await dbReady;
     return new Promise((res, rej) => {
-      const t = db.transaction('spots', mode), s = t.objectStore('spots');
-      const out = fn(s);
+      const t = db.transaction('spots', mode), out = fn(t.objectStore('spots'));
       t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
       t.onerror = () => rej(t.error);
     });
   }
   const getAll = () => tx('readonly', s => s.getAll());
-  const putSpot = spot => tx('readwrite', s => s.put(spot));
-  const delSpot = id => tx('readwrite', s => s.delete(id));
-
-  function urlFor(spot){
-    if(!urls.has(spot.id)) urls.set(spot.id, URL.createObjectURL(spot.blob));
-    return urls.get(spot.id);
-  }
+  const putSpot = s => tx('readwrite', st => st.put(s));
+  const delSpot = id => tx('readwrite', st => st.delete(id));
+  const urlFor = s => { if(!urls.has(s.id)) urls.set(s.id, URL.createObjectURL(s.blob)); return urls.get(s.id); };
 
   /* Camera */
   async function startCamera(){
     stopCamera();
     try{
-      stream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode:{ ideal: facing }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false
-      });
-      video.srcObject = stream;
-      $('camNotice').classList.remove('show');
+      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:facing }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false });
+      video.srcObject = stream; $('camNotice').classList.remove('show');
     }catch(e){
       $('camNoticeText').textContent = 'Camera is blocked. Allow camera access for this site in your browser settings, then tap below.';
       $('camNotice').classList.add('show');
@@ -240,18 +300,17 @@
   $('camRetry').onclick = startCamera;
   $('flipBtn').onclick = () => { facing = facing === 'environment' ? 'user' : 'environment'; startCamera(); };
 
-  /* Location, always warm so the fix is ready the instant you shoot */
+  /* Location */
   function startGPS(){
-    if(!navigator.geolocation){ setGPS('none','No location'); return; }
+    if(!navigator.geolocation) return setGPS('none','No location');
     navigator.geolocation.watchPosition(p => {
       lastFix = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, t:Date.now() };
-      if(p.coords.accuracy <= 30) setGPS('ok', `Located within ${Math.round(p.coords.accuracy)}m`);
-      else setGPS('weak', `Rough location, ${Math.round(p.coords.accuracy)}m`);
+      p.coords.accuracy <= 30 ? setGPS('ok', `Located within ${Math.round(p.coords.accuracy)}m`) : setGPS('weak', `Rough location, ${Math.round(p.coords.accuracy)}m`);
     }, () => setGPS('none','Location off'), { enableHighAccuracy:true, maximumAge:2000, timeout:20000 });
   }
-  function setGPS(state, text){ $('gps').className = 'gps ' + state; $('gpsText').textContent = text; }
+  function setGPS(s, t){ $('gps').className = 'gps ' + s; $('gpsText').textContent = t; }
 
-  /* Compass direction */
+  /* Compass */
   function onOrient(e){
     if(typeof e.webkitCompassHeading === 'number') heading = e.webkitCompassHeading;
     else if(e.absolute && typeof e.alpha === 'number') heading = (360 - e.alpha) % 360;
@@ -262,137 +321,225 @@
       if(typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function'){
         if(await DeviceOrientationEvent.requestPermission() !== 'granted') return;
       }
-      window.addEventListener('deviceorientationabsolute', onOrient, true);
-      window.addEventListener('deviceorientation', onOrient, true);
+      addEventListener('deviceorientationabsolute', onOrient, true);
+      addEventListener('deviceorientation', onOrient, true);
     }catch(e){}
   }
   const compass = d => ['N','NE','E','SE','S','SW','W','NW'][Math.round(d / 45) % 8];
+
+  /* Tag panel */
+  function renderTagPanel(){
+    const t = editing.tags;
+    $('tagPanel').innerHTML = TAGS.map(g => {
+      const chosen = g.multi ? t[g.key] : (t[g.key] ? [t[g.key]] : []);
+      return `<div class="group"><h4>${g.label}<small>${g.multi ? 'pick any' : 'pick one'}</small></h4><div class="chips">` +
+        g.options.map(([id]) => chipHTML(g.key + ':' + id, chosen.includes(id))).join('') + `</div></div>`;
+    }).join('');
+  }
+  $('tagPanel').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if(!c) return;
+    const [g, id] = c.dataset.k.split(':'), grp = TAGS.find(x => x.key === g), t = editing.tags;
+    if(grp.multi){ const a = t[g]; const i = a.indexOf(id); i < 0 ? a.push(id) : a.splice(i, 1); }
+    else t[g] = t[g] === id ? null : id;
+    renderTagPanel();
+  });
 
   /* Capture */
   $('shutter').onclick = async () => {
     askOrientation();
     if(!stream || !video.videoWidth) return toast('Camera is not ready yet');
-    const max = 1600, w = video.videoWidth, h = video.videoHeight, k = Math.min(1, max / Math.max(w, h));
+    const w = video.videoWidth, h = video.videoHeight, k = Math.min(1, 1600 / Math.max(w, h));
     canvas.width = Math.round(w * k); canvas.height = Math.round(h * k);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     $('flash').classList.add('on'); setTimeout(() => $('flash').classList.remove('on'), 60);
     const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.82));
     const fix = lastFix && Date.now() - lastFix.t < 60000 ? lastFix : null;
-    pending = { blob, fix, heading, ts: Date.now() };
-    $('reviewImg').src = URL.createObjectURL(blob);
+    editing = { mode:'new', blob, fix, heading, ts:Date.now(), tags:emptyTags(), url:URL.createObjectURL(blob) };
+    $('reviewImg').src = editing.url;
     $('noteInput').value = '';
     $('reviewMeta').innerHTML = fix
       ? `<span><strong>${fix.lat.toFixed(5)}, ${fix.lng.toFixed(5)}</strong></span><span>within ${Math.round(fix.acc)}m</span>${heading != null ? `<span>facing ${compass(heading)}</span>` : ''}`
-      : '<span><strong>No location yet.</strong> Step outside or wait for the dot to turn yellow, then retake.</span>';
+      : '<span><strong>No location yet.</strong> Wait for the dot to turn yellow, then retake.</span>';
+    $('cancelBtn').textContent = 'Retake'; $('saveBtn').textContent = 'Save spot';
     $('saveBtn').disabled = !fix;
+    renderTagPanel();
+    $('review').querySelector('.review-scroll').scrollTop = 0;
     $('review').classList.add('show');
   };
-  function closeReview(){
-    if($('reviewImg').src) URL.revokeObjectURL($('reviewImg').src);
-    $('review').classList.remove('show'); pending = null;
+
+  function openEditor(s){
+    editing = { mode:'edit', spot:s, tags:Object.assign(emptyTags(), JSON.parse(JSON.stringify(s.tags || {}))) };
+    $('reviewImg').src = urlFor(s);
+    $('noteInput').value = s.note || '';
+    $('reviewMeta').innerHTML = `<span>Editing spot from ${new Date(s.ts).toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span>`;
+    $('cancelBtn').textContent = 'Cancel'; $('saveBtn').textContent = 'Save changes'; $('saveBtn').disabled = false;
+    renderTagPanel();
+    $('review').querySelector('.review-scroll').scrollTop = 0;
+    $('review').classList.add('show');
   }
-  $('retakeBtn').onclick = closeReview;
+  function closeReview(){
+    if(editing && editing.mode === 'new') URL.revokeObjectURL(editing.url);
+    $('review').classList.remove('show'); editing = null;
+  }
+  $('cancelBtn').onclick = closeReview;
   $('saveBtn').onclick = async () => {
-    if(!pending || !pending.fix) return;
-    const spot = {
-      id: String(pending.ts), ts: pending.ts,
-      lat: pending.fix.lat, lng: pending.fix.lng, acc: pending.fix.acc,
-      heading: pending.heading, note: $('noteInput').value.trim(), blob: pending.blob
-    };
+    if(!editing) return;
     $('saveBtn').disabled = true;
     try{
-      await putSpot(spot);
-      spots.unshift(spot); renderThumb(); closeReview(); toast('Spot saved');
+      if(editing.mode === 'new'){
+        if(!editing.fix) return;
+        const s = { id:String(editing.ts), ts:editing.ts, lat:editing.fix.lat, lng:editing.fix.lng, acc:editing.fix.acc,
+          heading:editing.heading, note:$('noteInput').value.trim(), tags:editing.tags, blob:editing.blob };
+        await putSpot(s); spots.unshift(s); closeReview(); updateCounts(); toast('Spot saved');
+      }else{
+        const s = editing.spot; s.note = $('noteInput').value.trim(); s.tags = editing.tags;
+        await putSpot(s); closeReview(); refresh(); showSheet(s); toast('Changes saved');
+      }
     }catch(e){ toast('Could not save. Try again.'); $('saveBtn').disabled = false; }
   };
 
-  function renderThumb(){
-    const t = $('thumbBtn');
-    t.innerHTML = spots.length ? `<img src="${urlFor(spots[0])}" alt=""><b>${spots.length}</b>` : '';
+  /* Drawer: swipe up from the camera to open, drag the header down to close */
+  let drawerOpen = false;
+  function setDrawerY(px){ drawer.style.transition = 'none'; drawer.style.transform = `translateY(${Math.max(0, px)}px)`; }
+  function openDrawer(){
+    drawer.style.transition = ''; drawer.style.transform = ''; drawer.classList.add('open');
+    if(drawerOpen) return; drawerOpen = true; stopCamera(); refresh();
+    if(view === 'map') setTimeout(ensureMap, 60);
   }
+  function closeDrawer(){
+    drawer.style.transition = ''; drawer.style.transform = ''; drawer.classList.remove('open');
+    hideSheet(); if(!drawerOpen) return; drawerOpen = false; startCamera();
+  }
+  function dragger(zoneTest, fromOpen){
+    let y0 = null, t0 = 0, dy = 0;
+    document.addEventListener('touchstart', e => {
+      if(!zoneTest(e)) return;
+      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0;
+    }, { passive:true });
+    document.addEventListener('touchmove', e => {
+      if(y0 == null) return;
+      dy = e.touches[0].clientY - y0;
+      if(fromOpen && dy > 0) setDrawerY(dy);
+      if(!fromOpen && dy < 0) setDrawerY(innerHeight + dy);
+    }, { passive:true });
+    document.addEventListener('touchend', () => {
+      if(y0 == null) return;
+      const v = dy / Math.max(1, Date.now() - t0); y0 = null;
+      if(fromOpen) (dy > 120 || v > .5) ? closeDrawer() : openDrawer();
+      else (dy < -80 || v < -.5) ? openDrawer() : closeDrawer();
+    });
+  }
+  const cameraIdle = () => !drawerOpen && !$('review').classList.contains('show');
+  dragger(e => cameraIdle() && !e.target.closest('#shutter,#flipBtn,.notice button'), false);
+  dragger(e => drawerOpen && !!e.target.closest('#dhead') && !e.target.closest('button'), true);
+  addEventListener('wheel', e => { if(cameraIdle() && e.deltaY > 25) openDrawer(); }, { passive:true });
+  $('pullBtn').onclick = openDrawer;
+  $('closeDrawer').onclick = closeDrawer;
 
-  /* Map */
-  let map = null, markers = [], openSpot = null;
-  function openMap(){
-    stopCamera();
-    $('mapview').classList.add('show');
-    $('countLabel').textContent = `${spots.length} spot${spots.length === 1 ? '' : 's'}`;
-    $('mapEmpty').style.display = spots.length ? 'none' : 'block';
-    if(!map){
-      mapboxgl.accessToken = MAPBOX_TOKEN;
-      const c = spots[0] || lastFix;
-      map = new mapboxgl.Map({
-        container:'map', style:'mapbox://styles/mapbox/dark-v11',
-        center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11, attributionControl:true
-      });
-      map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'bottom-right');
-      map.on('click', () => hideSheet());
-      map.on('load', drawPins);
-    }else{
-      map.resize(); drawPins();
-    }
+  /* Map and album */
+  $('segMap').onclick = () => setView('map');
+  $('segAlbum').onclick = () => setView('album');
+  function setView(v){
+    view = v;
+    $('segMap').setAttribute('aria-pressed', v === 'map'); $('segAlbum').setAttribute('aria-pressed', v === 'album');
+    $('album').classList.toggle('show', v === 'album');
+    $('map').style.visibility = v === 'map' ? 'visible' : 'hidden';
+    if(v === 'map') ensureMap();
+    renderEmpty();
   }
-  function drawPins(){
+  const visible = () => spots.filter(s => { const f = flatTags(s.tags); for(const k of filters) if(!f.includes(k)) return false; return true; });
+  function updateCounts(){
+    $('pullText').innerHTML = spots.length ? `Swipe up for your <b>${spots.length}</b> spot${spots.length === 1 ? '' : 's'}` : 'Swipe up for your spots';
+  }
+  function refresh(){
+    const used = new Set(); spots.forEach(s => flatTags(s.tags).forEach(k => used.add(k)));
+    [...filters].forEach(k => { if(!used.has(k)) filters.delete(k); });
+    const order = Object.keys(OPT).filter(k => used.has(k));
+    $('filters').innerHTML = order.map(k => chipHTML(k, filters.has(k))).join('');
+    const vis = visible();
+    $('countLabel').textContent = filters.size ? `${vis.length} of ${spots.length}` : `${spots.length} spot${spots.length === 1 ? '' : 's'}`;
+    $('album').innerHTML = vis.map(s => `<button data-id="${s.id}"><img src="${urlFor(s)}" alt="" loading="lazy">${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('');
+    drawPins(vis); renderEmpty(); updateCounts();
+  }
+  function renderEmpty(){
+    const e = $('empty');
+    if(!spots.length){ e.textContent = 'No spots yet. Swipe down, point your camera at somewhere worth coming back to, and tap the shutter.'; e.style.display = 'block'; }
+    else if(!visible().length){ e.textContent = 'No spots match those tags. Tap a highlighted tag above to remove it.'; e.style.display = 'block'; }
+    else e.style.display = 'none';
+  }
+  $('filters').addEventListener('click', e => {
+    const c = e.target.closest('.chip'); if(!c) return;
+    filters.has(c.dataset.k) ? filters.delete(c.dataset.k) : filters.add(c.dataset.k);
+    refresh(); fitPins();
+  });
+  $('album').addEventListener('click', e => {
+    const b = e.target.closest('button[data-id]'); if(!b) return;
+    showSheet(spots.find(s => s.id === b.dataset.id));
+  });
+
+  let map = null, markers = [];
+  function ensureMap(){
+    if(map){ map.resize(); return; }
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    const c = spots[0] || lastFix;
+    map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/dark-v11',
+      center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11 });
+    map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'bottom-right');
+    map.on('load', () => { drawPins(visible()); fitPins(); });
+  }
+  function drawPins(list){
+    if(!map) return;
     markers.forEach(m => m.remove()); markers = [];
-    spots.forEach(s => {
+    list.forEach(s => {
       const el = document.createElement('button');
       el.className = 'pin'; el.setAttribute('aria-label', s.note || 'Saved spot');
-      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') +
-        `<div class="face"><img src="${urlFor(s)}" alt=""></div>`;
+      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') + `<div class="face"><img src="${urlFor(s)}" alt=""></div>`;
       el.onclick = ev => { ev.stopPropagation(); showSheet(s); };
-      markers.push(new mapboxgl.Marker({ element: el }).setLngLat([s.lng, s.lat]).addTo(map));
+      markers.push(new mapboxgl.Marker({ element:el }).setLngLat([s.lng, s.lat]).addTo(map));
     });
-    if(spots.length > 1){
-      const b = new mapboxgl.LngLatBounds();
-      spots.forEach(s => b.extend([s.lng, s.lat]));
-      map.fitBounds(b, { padding:80, maxZoom:15, duration:0 });
-    }
   }
+  function fitPins(){
+    const list = visible(); if(!map || !list.length) return;
+    if(list.length === 1) return map.easeTo({ center:[list[0].lng, list[0].lat], zoom:15, duration:0 });
+    const b = new mapboxgl.LngLatBounds(); list.forEach(s => b.extend([s.lng, s.lat]));
+    map.fitBounds(b, { padding:70, maxZoom:15, duration:0 });
+  }
+
+  /* Spot sheet */
   function showSheet(s){
-    openSpot = s;
+    if(!s) return; openSpot = s;
     $('sheetImg').src = urlFor(s);
     $('sheetTitle').textContent = s.note || 'Untitled spot';
     const d = new Date(s.ts);
     $('sheetMeta').innerHTML = `<span>${d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}, ${d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</span>` +
-      (s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '') +
-      `<span>within ${Math.round(s.acc)}m</span>`;
-    $('sheet').classList.add('show');
-    map.easeTo({ center:[s.lng, s.lat], offset:[0, -140], duration:400 });
+      (s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '') + `<span>within ${Math.round(s.acc)}m</span>`;
+    const tags = flatTags(s.tags);
+    $('sheetTags').innerHTML = tags.length ? tags.map(k => chipHTML(k, null, 'span')).join('') : '';
+    $('sheet').scrollTop = 0;
+    $('sheet').classList.add('show'); $('scrim').classList.add('show');
   }
-  function hideSheet(){ $('sheet').classList.remove('show'); openSpot = null; }
+  function hideSheet(){ $('sheet').classList.remove('show'); $('scrim').classList.remove('show'); openSpot = null; }
+  $('scrim').onclick = hideSheet;
   $('appleBtn').onclick = () => openSpot && (location.href = `https://maps.apple.com/?daddr=${openSpot.lat},${openSpot.lng}`);
   $('googleBtn').onclick = () => openSpot && window.open(`https://www.google.com/maps/dir/?api=1&destination=${openSpot.lat},${openSpot.lng}`, '_blank');
-  $('renameBtn').onclick = async () => {
-    if(!openSpot) return;
-    const n = prompt('Name this spot', openSpot.note || '');
-    if(n === null) return;
-    openSpot.note = n.trim().slice(0, 80);
-    await putSpot(openSpot); showSheet(openSpot); drawPins();
-  };
+  $('editBtn').onclick = () => { if(openSpot){ const s = openSpot; hideSheet(); openEditor(s); } };
   $('deleteBtn').onclick = async () => {
     if(!openSpot || !confirm('Delete this spot? This cannot be undone.')) return;
-    await delSpot(openSpot.id);
-    spots = spots.filter(s => s.id !== openSpot.id);
-    hideSheet(); drawPins(); renderThumb();
-    $('countLabel').textContent = `${spots.length} spot${spots.length === 1 ? '' : 's'}`;
-    $('mapEmpty').style.display = spots.length ? 'none' : 'block';
+    await delSpot(openSpot.id); spots = spots.filter(s => s.id !== openSpot.id);
+    hideSheet(); refresh();
   };
-  $('thumbBtn').onclick = openMap;
-  $('closeMap').onclick = () => { hideSheet(); $('mapview').classList.remove('show'); startCamera(); };
 
-  function toast(msg){
-    const t = $('toast'); t.textContent = msg; t.classList.add('show');
-    clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1600);
-  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1600); }
 
   document.addEventListener('visibilitychange', () => {
-    if(document.hidden) stopCamera();
-    else if(!$('mapview').classList.contains('show') && !$('review').classList.contains('show')) startCamera();
+    if(document.hidden) stopCamera(); else if(cameraIdle()) startCamera();
   });
 
   (async () => {
     startCamera(); startGPS();
-    try{ spots = (await getAll()).sort((a, b) => b.ts - a.ts); renderThumb(); }catch(e){}
+    try{ spots = (await getAll()).sort((a, b) => b.ts - a.ts); }catch(e){}
+    updateCounts();
   })();
 })();
 </script>
