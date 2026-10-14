@@ -225,6 +225,37 @@
   .album button.dim img{opacity:.4}
   .album em{position:absolute;top:6px;left:6px;font-style:normal;font-size:10px;font-weight:800;background:var(--signal);color:#000;padding:2px 7px;border-radius:99px}
   .feed{padding-bottom:calc(var(--safe-b) + 110px)}
+  .drawer[data-view="feed"] .filters{display:none}
+  .fsort{position:static;padding:6px 12px 0;background:none}
+  .fsort .chip{padding:6px 11px;font-size:12px}
+
+  /* Feed category folders */
+  .cats{display:flex;gap:12px;overflow-x:auto;padding:26px 12px 16px;scrollbar-width:none;scroll-snap-type:x proximity}
+  .cats::-webkit-scrollbar{display:none}
+  .cat{flex:none;width:148px;height:116px;position:relative;scroll-snap-align:start}
+  .cat .peek{position:absolute;left:0;right:0;top:-12px;height:60px}
+  .cat .peek img{position:absolute;left:50%;top:0;width:68px;height:54px;object-fit:cover;border-radius:9px;
+    transform:translateX(calc(-50% + var(--x))) rotate(var(--r));box-shadow:0 4px 12px rgba(0,0,0,.5);transition:transform .25s}
+  .cat[aria-pressed="true"] .peek img{transform:translateX(calc(-50% + var(--x) * 1.25)) translateY(-6px) rotate(calc(var(--r) * 1.4))}
+  .cat .glass{position:absolute;left:0;right:0;bottom:0;height:84px;border-radius:22px;overflow:hidden;background:rgba(58,58,58,.62);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 10px 22px rgba(0,0,0,.45);
+    display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding:0 10px 13px}
+  .cat .gbg{position:absolute;inset:-24px;background-size:cover;background-position:center;filter:blur(20px) saturate(1.7) brightness(.62);z-index:0}
+  .cat .glass::after{content:'';position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.14),rgba(0,0,0,.28));z-index:1}
+  .cat b,.cat small{position:relative;z-index:2;white-space:nowrap}
+  .cat b{font-size:14px;font-weight:700;color:#fff}
+  .cat small{font-size:11px;color:rgba(255,255,255,.62);margin-top:2px}
+  .cat[aria-pressed="true"] .glass{box-shadow:inset 0 0 0 2px #fff,0 10px 22px rgba(0,0,0,.45)}
+
+  /* Two-column photo grid */
+  .mgrid{display:flex;gap:8px;padding:0 8px;align-items:flex-start}
+  .mcol{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+  .tile{position:relative;display:block;width:100%;border-radius:18px;overflow:hidden;background:#1a1a1a;text-align:left}
+  .tile img{width:100%;display:block;min-height:130px;object-fit:cover}
+  .tcap{position:absolute;left:0;right:0;bottom:0;padding:26px 11px 10px;background:linear-gradient(transparent,rgba(0,0,0,.7))}
+  .tcap b{display:block;font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tcap small{display:block;font-size:11px;color:rgba(255,255,255,.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tbadge{position:absolute;top:8px;left:8px;font-style:normal;font-size:10px;font-weight:800;background:var(--signal);color:#000;padding:2px 7px;border-radius:99px}
   .feed{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding-bottom:calc(var(--safe-b) + 24px)}
   .feed.show{display:block}
   .fsort{position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:10px 12px;background:var(--panel)}
@@ -342,7 +373,7 @@
       <div class="album" id="album"></div>
     </div>
     <div class="ptab" id="ptab"></div>
-    <div class="feed" id="feed"><div class="fsort" id="fsort"></div><div id="feedList"></div></div>
+    <div class="feed" id="feed"><div class="fsort" id="fsort"></div><div class="cats" id="cats"></div><div id="feedList"></div></div>
     <div class="empty" id="empty"></div>
   </div>
   <nav class="tabbar" id="tabbar" aria-label="Sections">
@@ -706,7 +737,11 @@
     $('filters').innerHTML = order.map(k => chipHTML(k, filters.has(k))).join('');
     const vis = b.filter(passes);
     if(view === 'profile'){ $('countLabel').textContent = ''; renderProfileTab(); renderEmpty(); return; }
-    if(view === 'feed'){ $('countLabel').textContent = `${vis.length} posts`; renderFeed(vis); renderEmpty(); updateCounts(); return; }
+    if(view === 'feed'){
+      if(feedCat !== 'all' && !b.some(catFn())) feedCat = 'all';
+      const list = b.filter(catFn());
+      $('countLabel').textContent = `${list.length} spot${list.length === 1 ? '' : 's'}`; renderFeed(b, list); renderEmpty(); updateCounts(); return;
+    }
     if(view === 'explore') $('countLabel').textContent = pubLoading && !pub.length ? 'Loading' : `${vis.length} public`;
     else $('countLabel').textContent = filters.size ? `${vis.length} of ${b.length}` : `${b.length} spot${b.length === 1 ? '' : 's'}`;
     $('mineCount').textContent = filters.size ? `${vis.length} of ${b.length}` : String(spots.length);
@@ -717,7 +752,7 @@
     const e = $('empty');
     if(view === 'profile'){ e.style.display = 'none'; return; }
     if(view === 'feed'){
-      const msg = feedErr || (feedLoading || visible().length ? '' : feed.length ? 'No posts match those tags. Tap a highlighted tag above to remove it.' : 'Nothing posted yet. Open one of your spots and tap Share to public map to post the first one.');
+      const msg = feedErr || (feedLoading || feed.length ? '' : 'Nothing posted yet. Open one of your spots and tap Share to public map to post the first one.');
       e.textContent = msg; e.style.display = msg ? 'block' : 'none'; if(msg) e.style.top = '64px'; return;
     }
     e.style.top = '';
@@ -798,7 +833,7 @@
   }
   function tapPin(it){
     const g = it.g;
-    if(g && g.length > 1 && map.getZoom() < 19){
+    if(g && g.length > 1 && (it.b || 0) < 0.6 && map.getZoom() < 19){
       const b = new mapboxgl.LngLatBounds(); g.forEach(x => b.extend([x.s.lng, x.s.lat]));
       const sw = map.project(b.getSouthWest()), ne = map.project(b.getNorthEast());
       if(Math.hypot(ne.x - sw.x, ne.y - sw.y) < 8) map.easeTo({ center:b.getCenter(), zoom:Math.min(19.5, map.getZoom() + 2.5) });
@@ -819,16 +854,36 @@
     });
     items.forEach(it => {
       const g = it.g;
-      if(!g || g.length === 1) return place(it, null, 'single', 0, 1, '');
+      if(!g || g.length === 1){ it.b = 1; return place(it, null, 'single', 0, 1, ''); }
       if(it !== g[0]) return;
       const cx = g.reduce((a, x) => a + x.p.x, 0) / g.length, cy = g.reduce((a, x) => a + x.p.y, 0) / g.length;
       let far = 0; g.forEach(a => g.forEach(b => { far = Math.max(far, Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y)); }));
-      const t = Math.min(1, far / GROUP_R), e = t * t * (3 - 2 * t);
+      const sm = v => { v = Math.max(0, Math.min(1, v)); return v * v * (3 - 2 * v); };
+      // e: how far apart they really are on screen. f: past street level, stacks that
+      // share one spot fan out into a ring so every photo can be tapped on its own.
+      const e = sm(far / GROUP_R), f = sm((map.getZoom() - 16.5) / 2), bl = Math.max(e, f);
+      const n = g.length;
+      const pos = g.map((x, k) => {
+        const sl = SLOTS[Math.min(k, SLOTS.length - 1)], tuck = k >= SLOTS.length, ox = tuck ? 0 : sl[0], oy = tuck ? 0 : sl[1];
+        return { x:cx + ox + (x.p.x - cx - ox) * bl, y:cy + oy + (x.p.y - cy - oy) * bl };
+      });
+      // Push overlapping photos apart; photos from the exact same spot fan out evenly
+      const D = 60 * bl;
+      for(let it = 0; it < 14 && D > 1; it++){
+        let moved = false;
+        for(let i = 0; i < n; i++) for(let j = i + 1; j < n; j++){
+          let dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y, d = Math.hypot(dx, dy);
+          if(d >= D) continue;
+          if(d < 0.5){ const ang = -Math.PI / 2 + (j + i * 0.37) * 2 * Math.PI / n; dx = Math.cos(ang); dy = Math.sin(ang); d = 1; }
+          const push = (D - Math.min(d, D)) / 2, nx = dx / d, ny = dy / d;
+          pos[i].x -= nx * push; pos[i].y -= ny * push; pos[j].x += nx * push; pos[j].y += ny * push; moved = true;
+        }
+        if(!moved) break;
+      }
       g.forEach((x, k) => {
-        const sl = SLOTS[Math.min(k, SLOTS.length - 1)], tuck = k >= SLOTS.length;
-        const ox = tuck ? 0 : sl[0], oy = tuck ? 0 : sl[1];
-        const px = cx + ox + (x.p.x - cx - ox) * e, py = cy + oy + (x.p.y - cy - oy) * e;
-        place(x, { x:px, y:py }, k === 0 ? 'main' : tuck ? 'tuck' : 'sub', (tuck ? 0 : sl[2]) * (1 - e), 20 - Math.min(k, 15), k === 0 ? String(g.length) : '', tuck ? e : 1);
+        const sl = SLOTS[Math.min(k, SLOTS.length - 1)], tuck = k >= SLOTS.length, apart = bl > 0.6; x.b = bl;
+        place(x, pos[k], apart ? 'single' : k === 0 ? 'main' : tuck ? 'tuck' : 'sub', apart ? 0 : (tuck ? 0 : sl[2]) * (1 - bl),
+          20 - Math.min(k, 15), !apart && k === 0 ? String(n) : '', tuck ? Math.min(1, bl * 2) : 1);
       });
     });
   }
@@ -904,6 +959,32 @@
   $('titleInput').addEventListener('blur', () => closeRename(true));
   function hideSheet(){ closeRename(true); $('sheet').classList.remove('show'); $('scrim').classList.remove('show'); openSpot = null; }
   $('scrim').onclick = hideSheet;
+  (() => {
+    const sh = $('sheet'); let y0 = null, dy = 0, t0 = 0, drag = false;
+    sh.addEventListener('touchstart', e => {
+      if(e.target.closest('input')) return;
+      y0 = e.touches[0].clientY; dy = 0; t0 = Date.now(); drag = false;
+    }, { passive:true });
+    sh.addEventListener('touchmove', e => {
+      if(y0 == null) return;
+      const d = e.touches[0].clientY - y0;
+      if(!drag){
+        if(d > 6 && sh.scrollTop <= 0) drag = true;
+        else if(Math.abs(d) > 6){ y0 = null; return; }
+        else return;
+      }
+      dy = Math.max(0, d); sh.style.transition = 'none'; sh.style.transform = `translateY(${dy}px)`;
+      $('scrim').style.opacity = String(Math.max(0, 1 - dy / 400));
+      e.preventDefault();
+    }, { passive:false });
+    const end = () => {
+      if(y0 == null) return; y0 = null; if(!drag) return; drag = false;
+      const v = dy / Math.max(1, Date.now() - t0);
+      sh.style.transition = ''; sh.style.transform = ''; $('scrim').style.opacity = '';
+      if(dy > 110 || v > .6) hideSheet();
+    };
+    sh.addEventListener('touchend', end); sh.addEventListener('touchcancel', end);
+  })();
   $('favBtn').onclick = async () => {
     if(!openSpot) return;
     openSpot.fav = !openSpot.fav;
@@ -1040,7 +1121,7 @@
     lat:r.lat, lng:r.lng, heading:r.heading, ts:Date.parse(r.created_at), photo_path:r.photo_path, thumb_path:r.thumb_path, username:names.get(r.user_id) || '' });
 
   /* Feed: shared spots as posts, nearest or newest first */
-  const PAGE = 15;
+  const PAGE = 30;
   async function loadFeed(reset){
     if(!sb){ feedErr = 'The feed is offline right now. Check your connection.'; return refresh(); }
     if(reset){ feed = []; feedDone = false; $('feed').scrollTop = 0; }
@@ -1078,21 +1159,50 @@
     const mi = dist([lastFix.lng, lastFix.lat], [s.lng, s.lat]) / 1609.34;
     return mi < 0.1 ? `${Math.round(mi * 5280)} ft away` : `${mi < 10 ? mi.toFixed(1) : Math.round(mi)} mi away`;
   };
-  function renderFeed(list){
+  /* Feed categories: broad groups built from the tags, not one per tag */
+  const anyOf = (s, g, ids) => ((s.tags && s.tags[g]) || []).some(x => ids.includes(x));
+  const CATS = [
+    ['all', 'All spots', () => true],
+    ['walls', 'Walls & murals', s => anyOf(s, 'surface', ['mural', 'graffiti', 'brick'])],
+    ['streets', 'Streets & alleys', s => anyOf(s, 'surface', ['alley', 'street', 'stairs', 'storefront'])],
+    ['industrial', 'Industrial', s => anyOf(s, 'surface', ['industrial', 'metal', 'concrete', 'glass'])],
+    ['nature', 'Nature', s => anyOf(s, 'surface', ['greenery', 'water', 'field', 'wood', 'stone'])],
+    ['views', 'Rooftops & views', s => anyOf(s, 'surface', ['rooftop'])],
+    ['color', 'Colorful', s => ((s.tags && s.tags.color) || []).some(c => !['black', 'white', 'gray', 'brown'].includes(c))],
+    ['quiet', 'Quiet spots', s => !!s.tags && (s.tags.visibility === 'hidden' || s.tags.movement === 'still')]
+  ];
+  let feedCat = 'all';
+  const catFn = () => (CATS.find(c => c[0] === feedCat) || CATS[0])[2];
+  function renderFeed(all, list){
     renderSort();
-    $('feedList').innerHTML = list.map(s => {
-      const tags = flatTags(s.tags).slice(0, 5).map(k => chipHTML(k, null, 'span')).join('');
-      const meta = [away(s), s.heading != null ? `shot facing ${compass(s.heading)}` : '', s.mine && s.hidden ? 'hidden while reviewed' : ''].filter(Boolean).join(' · ');
-      return `<article class="card" data-id="${s.id}">
-        <div class="chead"><span class="cuser">${s.username ? '@' + esc(s.username) : 'someone'}${s.mine ? ' (you)' : ''}</span><span class="ctime">${ago(s.ts)}</span></div>
-        <img src="${signed.get(s.photo_path) || ''}" alt="" loading="lazy">
-        <div class="cbody"><h4>${esc(s.note || 'Untitled spot')}</h4>${meta ? `<div class="cmeta">${meta}</div>` : ''}${tags ? `<div class="chips">${tags}</div>` : ''}</div>
-      </article>`;
-    }).join('') + (feedLoading ? '<div class="phint" style="text-align:center;margin:14px 0">Loading</div>' : !feedDone && list.length ? '<button class="fmore" id="feedMore">Load more</button>' : '');
+    const cats = $('cats'), keep = cats.scrollLeft;
+    cats.innerHTML = CATS.map(([k, name, fn]) => {
+      const items = all.filter(fn);
+      if(k !== 'all' && !items.length) return '';
+      const pics = items.slice(0, 3).map(x => signed.get(x.photo_path)).filter(Boolean);
+      const fan = [[-24, -9], [24, 8], [0, 0]];
+      const peek = pics.map((u, i) => `<img src="${u}" alt="" style="--x:${fan[3 - pics.length + i][0]}px;--r:${fan[3 - pics.length + i][1]}deg">`).join('');
+      return `<button class="cat" data-c="${k}" aria-pressed="${feedCat === k}"><div class="peek">${peek}</div>
+        <div class="glass">${pics[0] ? `<div class="gbg" style="background-image:url('${pics[0]}')"></div>` : ''}<b>${name}</b><small>${items.length} spot${items.length === 1 ? '' : 's'}</small></div></button>`;
+    }).join('');
+    cats.scrollLeft = keep;
+    const cols = [[], []];
+    list.forEach((s, i) => {
+      const meta = [away(s), ago(s.ts)].filter(Boolean).join(' · ');
+      cols[i % 2].push(`<button class="tile" data-id="${s.id}"><img src="${signed.get(s.photo_path) || ''}" alt="" loading="lazy">
+        ${s.mine && s.hidden ? '<em class="tbadge">Under review</em>' : ''}
+        <div class="tcap"><b>${esc(s.note || 'Untitled spot')}</b><small>${s.username ? '@' + esc(s.username) + ' · ' : ''}${meta}</small></div></button>`);
+    });
+    $('feedList').innerHTML = (list.length ? `<div class="mgrid"><div class="mcol">${cols[0].join('')}</div><div class="mcol">${cols[1].join('')}</div></div>` : '') +
+      (feedLoading ? '<div class="phint" style="text-align:center;margin:14px 0">Loading</div>' : !feedDone && all.length ? '<button class="fmore" id="feedMore">Load more</button>' : '');
   }
+  $('cats').addEventListener('click', e => {
+    const b = e.target.closest('[data-c]'); if(!b || b.dataset.c === feedCat) return;
+    feedCat = b.dataset.c; $('feed').scrollTop = 0; refresh();
+  });
   $('feedList').addEventListener('click', e => {
     if(e.target.closest('#feedMore')) return loadFeed(false);
-    const c = e.target.closest('.card'); if(!c) return;
+    const c = e.target.closest('.tile'); if(!c) return;
     showSheet(feed.find(f => f.id === c.dataset.id));
   });
   $('feed').addEventListener('scroll', () => {
