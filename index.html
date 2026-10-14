@@ -50,8 +50,8 @@
   .pull svg{width:22px;height:22px;animation:nudge 2.4s ease-in-out infinite}
   .pull b{color:var(--signal)}
   @keyframes nudge{0%,70%,100%{transform:translateY(0)}80%{transform:translateY(-5px)}}
-  .shutter{grid-area:shutter;width:82px;height:82px;border-radius:50%;border:4px solid var(--white);display:grid;place-items:center}
-  .shutter span{width:64px;height:64px;border-radius:50%;background:var(--white);transition:transform .1s}
+  .shutter{grid-area:shutter;width:108px;height:76px;border-radius:24px;border:4px solid var(--white);display:grid;place-items:center}
+  .shutter span{width:88px;height:56px;border-radius:16px;background:var(--white);transition:transform .1s}
   .shutter:active span{transform:scale(.88)}
   .round{width:52px;height:52px;border-radius:50%;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
     display:grid;place-items:center;border:1px solid var(--line)}
@@ -107,7 +107,8 @@
   .filters .chip{padding:7px 11px;font-size:13px}
   .filters:empty{display:none}
   .dbody{flex:1;position:relative;min-height:0}
-  #map{position:absolute;inset:0}
+  #map{position:absolute;inset:0;z-index:0}
+  .drawer.adjusting .pin{opacity:.4}
   .album{position:absolute;inset:0;overflow-y:auto;padding:2px 2px calc(var(--safe-b) + 20px);display:none;
     grid-template-columns:repeat(3,1fr);gap:2px;align-content:start}
   .album.show{display:grid}
@@ -121,15 +122,15 @@
   .pin{width:0;height:0;cursor:pointer}
   .pin .cone{position:absolute;left:50%;top:50%;width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;
     border-bottom:44px solid rgba(255,214,10,.45);transform-origin:50% 100%;margin-left:-16px;margin-top:-44px}
-  .pin .face{position:absolute;left:0;top:0;width:64px;height:48px;padding:0;border-radius:13px;border:2px solid var(--white);overflow:hidden;background:#333;
+  .pin .face{position:absolute;left:0;top:0;width:52px;height:52px;padding:0;border-radius:14px;border:2px solid var(--white);overflow:hidden;background:#333;
     box-shadow:0 6px 16px rgba(0,0,0,.55);transform:translate(-50%,-50%) rotate(var(--rot,0deg)) scale(var(--grow,1));
     transition:width .25s ease,height .25s ease,border-radius .25s ease,transform .25s ease,opacity .2s}
-  .pin[data-size="main"] .face{width:84px;height:63px;border-radius:16px}
-  .pin[data-size="sub"] .face,.pin[data-size="tuck"] .face{width:56px;height:42px;border-radius:11px}
+  .pin[data-size="main"] .face{width:68px;height:68px;border-radius:18px}
+  .pin[data-size="sub"] .face,.pin[data-size="tuck"] .face{width:44px;height:44px;border-radius:12px}
   .pin:not([data-size="single"]) .cone{display:none}
   .pin.growing .face{transition:width .25s ease,height .25s ease,border-radius .25s ease,opacity .2s;box-shadow:0 14px 34px rgba(0,0,0,.6)}
   .pin.growing .cone{opacity:0}
-  .pin .badge{position:absolute;left:0;top:0;transform:translate(30px,-44px);padding:3px 8px;border-radius:99px;background:var(--white);color:#000;
+  .pin .badge{position:absolute;left:0;top:0;transform:translate(20px,-48px);padding:3px 8px;border-radius:99px;background:var(--white);color:#000;
     font-size:12px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.5);white-space:nowrap;pointer-events:none}
   .pin .badge:empty{display:none}
   .pin .face img{width:100%;height:100%;object-fit:cover;display:block}
@@ -205,11 +206,18 @@
   .tabbar button[aria-current="true"]{color:#fff}
   .tabbar button::before{content:'';position:absolute;top:-8px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff;opacity:0;transform:scale(.4);transition:.2s}
   .tabbar button[aria-current="true"]::before{opacity:1;transform:none}
-  .drawer.adjusting .tabbar,.drawer.adjusting .mine{display:none}
+  .tabbar{touch-action:none}
+  .swipehint{position:absolute;top:-17px;left:50%;width:18px;height:10px;margin-left:-9px;display:none;pointer-events:none;
+    fill:none;stroke:rgba(255,255,255,.6);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));
+    animation:nudge 2.4s ease-in-out infinite;transition:opacity .2s}
+  .drawer[data-view="map"] .swipehint{display:block}
+  .drawer.mine-open .swipehint{opacity:0}
+  .drawer.adjusting .tabbar,.drawer.adjusting .mine{display:none!important}
 
   /* Swipe-up sheet with every photo you've taken */
   .mine{position:absolute;left:0;right:0;bottom:0;height:88%;z-index:5;background:var(--panel);border-radius:22px 22px 0 0;display:none;flex-direction:column;
-    box-shadow:0 -10px 30px rgba(0,0,0,.5);transform:translateY(calc(100% - 124px - var(--safe-b)));transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+    box-shadow:0 -10px 30px rgba(0,0,0,.5);transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+  .mine:not(.open){box-shadow:none}
   .drawer[data-view="map"] .mine{display:flex}
   .mine.open{transform:none}
   .mine.open ~ .empty{display:none!important}
@@ -297,7 +305,7 @@
   #adjustUI{position:absolute;inset:0;z-index:3;pointer-events:none;display:none}
   .drawer.adjusting #adjustUI{display:block}
   .drawer.adjusting .dhead{pointer-events:none;opacity:.35}
-  .drawer.adjusting .mapboxgl-ctrl-bottom-right{display:none}
+  .drawer.adjusting .mapboxgl-ctrl-bottom-right,.drawer.adjusting .mapboxgl-ctrl-top-right{display:none}
   .xhair{position:absolute;left:50%;top:50%;width:44px;height:58px;margin:-58px 0 0 -22px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.6))}
   .xhair svg{width:100%;height:100%;display:block}
   .shotdot{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #000;box-shadow:0 0 0 2px #fff}
@@ -390,6 +398,7 @@
     <div class="empty" id="empty"></div>
   </div>
   <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <svg class="swipehint" viewBox="0 0 18 10" aria-hidden="true"><path d="M2 8l7-6 7 6"/></svg>
     <button data-t="feed" aria-current="false">feed</button>
     <button data-t="map" aria-current="true">map</button>
     <button data-t="profile" aria-current="false">profile</button>
@@ -737,6 +746,7 @@
     const b = e.target.closest('[data-t]'); if(!b) return;
     const v = b.dataset.t === 'map' ? mapScope : b.dataset.t;
     if(v !== view) setView(v);
+    else if(v === 'map') setMine(!mineSheet.classList.contains('open'));
   });
   function setView(v){
     endAdjust(); hideSheet();
@@ -750,7 +760,7 @@
     $('feed').classList.toggle('show', v === 'feed');
     $('ptab').classList.toggle('show', v === 'profile');
     $('map').style.visibility = v === 'map' || v === 'explore' ? 'visible' : 'hidden';
-    if(v !== 'map') $('mineSheet').classList.remove('open');
+    if(v !== 'map') setMine(false);
     if(v === 'map' || v === 'explore') ensureMap();
     refresh();
     if(v === 'explore') loadPublic();
@@ -762,16 +772,73 @@
 
   /* Swipe-up sheet on the map: every photo you've taken */
   const mineSheet = $('mineSheet');
-  function setMine(open){ mineSheet.classList.toggle('open', open); if(open) hideSheet(); }
+  function setMine(open){ mineSheet.classList.toggle('open', open); drawer.classList.toggle('mine-open', open); if(open) hideSheet(); }
+  // Drag it like the spot pages: grab the handle to pull it up, or drag anywhere on it
+  // (once the photos are scrolled to the top) to pull it back down
   (() => {
-    let y0 = null, moved = false;
-    $('mineHead').addEventListener('touchstart', e => { y0 = e.touches[0].clientY; moved = false; }, { passive:true });
-    $('mineHead').addEventListener('touchmove', e => { if(y0 != null && Math.abs(e.touches[0].clientY - y0) > 8) moved = true; }, { passive:true });
-    $('mineHead').addEventListener('touchend', e => {
-      if(y0 == null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null;
-      if(dy < -25) setMine(true); else if(dy > 25) setMine(false);
-    });
-    $('mineHead').addEventListener('click', () => { if(!moved) setMine(!mineSheet.classList.contains('open')); moved = false; });
+    const el = mineSheet, al = $('album');
+    let y0 = null, start = 0, dy = 0, t0 = 0, drag = false, onHead = false, dragged = false;
+    el.addEventListener('touchstart', e => {
+      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; drag = false; dragged = false;
+      onHead = !!e.target.closest('#mineHead');
+      start = new DOMMatrix(getComputedStyle(el).transform).m42;
+    }, { passive:true });
+    el.addEventListener('touchmove', e => {
+      if(y0 == null) return;
+      const d = e.touches[0].clientY - y0, open = el.classList.contains('open');
+      if(!drag){
+        if(Math.abs(d) < 6) return;
+        if(onHead || (open && d > 0 && al.scrollTop <= 0)) drag = dragged = true;
+        else { y0 = null; return; }
+      }
+      dy = d;
+      const closedY = el.offsetHeight;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${Math.max(0, Math.min(closedY, start + dy))}px)`;
+      e.preventDefault();
+    }, { passive:false });
+    const end = () => {
+      if(y0 == null){ return; } y0 = null; if(!drag) return; drag = false;
+      const v = dy / Math.max(1, Date.now() - t0), open = el.classList.contains('open');
+      el.style.transition = ''; el.style.transform = '';
+      if(dy < -40 || v < -.4) setMine(true);
+      else if(dy > 40 || v > .4) setMine(false);
+      else setMine(open);
+    };
+    el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+    $('mineHead').addEventListener('click', () => { if(!dragged) setMine(!el.classList.contains('open')); dragged = false; });
+  })();
+  // Start a swipe up on the floating menu to pull your photos up; swipe down on it to put them away
+  (() => {
+    const tb = $('tabbar'), el = mineSheet;
+    let y0 = null, dy = 0, t0 = 0, drag = false, ate = false;
+    tb.addEventListener('touchstart', e => {
+      ate = false; if(view !== 'map' || adjusting){ y0 = null; return; }
+      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; drag = false;
+    }, { passive:true });
+    tb.addEventListener('touchmove', e => {
+      if(y0 == null) return;
+      const d = e.touches[0].clientY - y0, open = el.classList.contains('open');
+      if(!drag){
+        if(Math.abs(d) < 8) return;
+        if((!open && d < 0) || (open && d > 0)) drag = ate = true; else { y0 = null; return; }
+      }
+      dy = d; const H = el.offsetHeight;
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${Math.max(0, Math.min(H, (open ? 0 : H) + dy))}px)`;
+      e.preventDefault();
+    }, { passive:false });
+    const end = () => {
+      if(y0 == null) return; y0 = null; if(!drag) return; drag = false;
+      setTimeout(() => { ate = false; }, 450);
+      const open = el.classList.contains('open'), v = dy / Math.max(1, Date.now() - t0);
+      el.style.transition = ''; el.style.transform = '';
+      if(!open && (dy < -60 || v < -.4)) setMine(true);
+      else if(open && (dy > 60 || v > .4)) setMine(false);
+      else setMine(open);
+    };
+    tb.addEventListener('touchend', end); tb.addEventListener('touchcancel', end);
+    tb.addEventListener('click', e => { if(ate){ e.stopPropagation(); e.preventDefault(); ate = false; } }, true);
   })();
   const passes = s => { const f = flatTags(s.tags); for(const k of filters) if(k === 'fav' ? !s.fav : !f.includes(k)) return false; return true; };
   const visible = () => base().filter(passes);
@@ -896,8 +963,8 @@
   /* Photo pins: overlapping photos gather into a layered collage, then slide
      apart toward their real spots as you zoom in */
   let pinMap = new Map();
-  const GROUP_R = 72;
-  const SLOTS = [[0, 0, 0], [50, -28, 7], [-50, 24, -6], [44, 30, 4]];
+  const GROUP_R = 64;
+  const SLOTS = [[0, 0, 0], [40, -30, 7], [-40, 26, -6], [36, 34, 4]];
   function drawPins(list){
     if(!map) return;
     markers.forEach(m => m.remove()); markers = []; pinMap = new Map();
@@ -954,7 +1021,7 @@
         return { x:cx + ox + (x.p.x - cx - ox) * bl, y:cy + oy + (x.p.y - cy - oy) * bl };
       });
       // Push overlapping photos apart; photos from the exact same spot fan out evenly
-      const D = 70 * bl;
+      const D = 60 * bl;
       for(let it = 0; it < 14 && D > 1; it++){
         let moved = false;
         for(let i = 0; i < n; i++) for(let j = i + 1; j < n; j++){
@@ -1147,7 +1214,7 @@
     return 2 * R * Math.asin(Math.sqrt(a));
   }
   function startAdjust(s){
-    hideSheet(); closeDlg();
+    hideSheet(); closeDlg(); setMine(false);
     if(view !== 'map') setView('map');
     ensureMap();
     const go = () => {
