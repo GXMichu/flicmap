@@ -178,7 +178,53 @@
   .pfoot{flex:none;padding:12px 18px calc(var(--safe-b) + 14px);border-top:1px solid #1a1a1a}
   .seg{max-width:340px}
   .seg button{font-size:13px}
-  @media (max-width:430px){ .count{display:none} }
+  .seg{max-width:220px}
+  .dtitle{flex:1;font-size:22px;font-weight:800;letter-spacing:-.01em;padding-left:4px}
+  .drawer:not([data-view="map"]):not([data-view="explore"]) #scopeSeg{display:none}
+  .drawer[data-view="map"] #dtitle,.drawer[data-view="explore"] #dtitle{display:none}
+  .drawer[data-view="profile"] .filters,.drawer[data-view="profile"] .count{display:none}
+
+  /* Floating section menu */
+  .tabbar{position:absolute;left:50%;bottom:calc(var(--safe-b) + 14px);transform:translateX(-50%);z-index:8;display:flex;gap:2px;
+    padding:15px 22px 11px;border-radius:99px;background:rgba(40,40,40,.72);backdrop-filter:blur(20px) saturate(1.4);-webkit-backdrop-filter:blur(20px) saturate(1.4);
+    box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.06)}
+  .tabbar button{position:relative;padding:4px 14px;font-size:19px;font-weight:600;letter-spacing:-.01em;color:rgba(255,255,255,.36);transition:color .2s}
+  .tabbar button[aria-current="true"]{color:#fff}
+  .tabbar button::before{content:'';position:absolute;top:-8px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff;opacity:0;transform:scale(.4);transition:.2s}
+  .tabbar button[aria-current="true"]::before{opacity:1;transform:none}
+  .drawer.adjusting .tabbar,.drawer.adjusting .mine{display:none}
+
+  /* Swipe-up sheet with every photo you've taken */
+  .mine{position:absolute;left:0;right:0;bottom:0;height:88%;z-index:5;background:var(--panel);border-radius:22px 22px 0 0;display:none;flex-direction:column;
+    box-shadow:0 -10px 30px rgba(0,0,0,.5);transform:translateY(calc(100% - 124px - var(--safe-b)));transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+  .drawer[data-view="map"] .mine{display:flex}
+  .mine.open{transform:none}
+  .mine.open ~ .empty{display:none!important}
+  .mhead{flex:none;padding:9px 16px 12px;touch-action:none;cursor:pointer}
+  .mhead .grab{margin-bottom:9px}
+  .mtitle{font-weight:700;font-size:15px;text-align:center}
+  .mtitle span{color:var(--muted);font-weight:500;margin-left:4px}
+  .mine .album{position:static;display:grid;flex:1;min-height:0;padding-bottom:calc(var(--safe-b) + 110px)}
+
+  /* Profile tab */
+  .ptab{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding-bottom:calc(var(--safe-b) + 110px)}
+  .ptab.show{display:block}
+  .ptop{display:flex;align-items:center;gap:14px;padding:16px 16px 14px}
+  .pav{width:74px;height:74px;border-radius:50%;background:#1b1b1b;overflow:hidden;display:grid;place-items:center;font-size:28px;font-weight:800;flex:none;color:#ddd}
+  .pav img{width:100%;height:100%;object-fit:cover;display:block}
+  .pwho{flex:1;min-width:0}
+  .pname{font-size:21px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pcity{color:var(--muted);font-size:14px;margin-top:3px}
+  .ptop .chip{flex:none}
+  .pcard{margin:6px 16px;padding:16px;border-radius:16px;background:#151515}
+  .pcard p{margin:0 0 12px;color:#bbb;line-height:1.45;font-size:15px}
+  .pcard .btn{width:100%}
+  .plist{padding:10px 16px;font-weight:700;font-size:15px;border-top:1px solid #1a1a1a}
+  .plist span{color:var(--muted);font-weight:500;margin-left:6px}
+  .ptab .album{position:static;display:grid}
+  .album button.dim img{opacity:.4}
+  .album em{position:absolute;top:6px;left:6px;font-style:normal;font-size:10px;font-weight:800;background:var(--signal);color:#000;padding:2px 7px;border-radius:99px}
+  .feed{padding-bottom:calc(var(--safe-b) + 110px)}
   .feed{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding-bottom:calc(var(--safe-b) + 24px)}
   .feed.show{display:block}
   .fsort{position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:10px 12px;background:var(--panel)}
@@ -264,17 +310,15 @@
   </button>
 </footer>
 
-<section class="drawer" id="drawer" aria-label="Your spots">
+<section class="drawer" id="drawer" data-view="map" aria-label="Your spots">
   <div class="dhead" id="dhead">
     <div class="grab"></div>
     <div class="dbar">
-      <button class="avatar" id="avatarBtn" aria-label="Your profile"></button>
-      <div class="seg" role="group" aria-label="View">
-        <button id="segMap" aria-pressed="true">Map</button>
-        <button id="segAlbum" aria-pressed="false">Album</button>
-        <button id="segExplore" aria-pressed="false">Explore</button>
-        <button id="segFeed" aria-pressed="false">Feed</button>
+      <div class="seg" id="scopeSeg" role="group" aria-label="Whose spots">
+        <button id="segMine" aria-pressed="true">Mine</button>
+        <button id="segEveryone" aria-pressed="false">Everyone</button>
       </div>
+      <div class="dtitle" id="dtitle"></div>
       <div class="count" id="countLabel">0 spots</div>
       <button class="closeX" id="closeDrawer" aria-label="Back to camera">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -293,10 +337,19 @@
         <div class="row"><button class="btn ghost" id="adjCancel">Cancel</button><button class="btn solid" id="adjSave">Save pin</button></div>
       </div>
     </div>
-    <div class="album" id="album"></div>
+    <div class="mine" id="mineSheet">
+      <div class="mhead" id="mineHead"><div class="grab"></div><div class="mtitle">All your spots <span id="mineCount"></span></div></div>
+      <div class="album" id="album"></div>
+    </div>
+    <div class="ptab" id="ptab"></div>
     <div class="feed" id="feed"><div class="fsort" id="fsort"></div><div id="feedList"></div></div>
     <div class="empty" id="empty"></div>
   </div>
+  <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <button data-t="feed" aria-current="false">feed</button>
+    <button data-t="map" aria-current="true">map</button>
+    <button data-t="profile" aria-current="false">profile</button>
+  </nav>
 </section>
 
 <div class="scrim" id="scrim"></div>
@@ -329,9 +382,9 @@
   </div>
 </section>
 
-<section class="profile" id="profile" aria-label="Profile">
+<section class="profile" id="profile" aria-label="Edit profile">
   <div class="phead">
-    <h2>Profile</h2>
+    <h2>Edit profile</h2>
     <button class="closeX" id="closeProfile" aria-label="Close profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
   </div>
   <div class="pbody">
@@ -596,24 +649,49 @@
   $('closeDrawer').onclick = closeDrawer;
 
   /* Map and album */
-  $('segMap').onclick = () => setView('map');
-  $('segAlbum').onclick = () => setView('album');
-  $('segExplore').onclick = () => setView('explore');
-  $('segFeed').onclick = () => setView('feed');
+  let mapScope = 'map';
+  $('segMine').onclick = () => setView('map');
+  $('segEveryone').onclick = () => setView('explore');
+  $('tabbar').addEventListener('click', e => {
+    const b = e.target.closest('[data-t]'); if(!b) return;
+    const v = b.dataset.t === 'map' ? mapScope : b.dataset.t;
+    if(v !== view) setView(v);
+  });
   function setView(v){
-    endAdjust();
+    endAdjust(); hideSheet();
     const was = view; view = v;
-    ['Map','Album','Explore','Feed'].forEach(n => $('seg' + n).setAttribute('aria-pressed', v === n.toLowerCase()));
-    $('album').classList.toggle('show', v === 'album');
+    if(v === 'map' || v === 'explore') mapScope = v;
+    drawer.dataset.view = v;
+    const tab = v === 'explore' ? 'map' : v;
+    $('tabbar').querySelectorAll('[data-t]').forEach(b => b.setAttribute('aria-current', b.dataset.t === tab));
+    $('segMine').setAttribute('aria-pressed', v === 'map'); $('segEveryone').setAttribute('aria-pressed', v === 'explore');
+    $('dtitle').textContent = v === 'feed' ? 'Feed' : v === 'profile' ? 'Profile' : '';
     $('feed').classList.toggle('show', v === 'feed');
-    $('map').style.visibility = v === 'album' || v === 'feed' ? 'hidden' : 'visible';
+    $('ptab').classList.toggle('show', v === 'profile');
+    $('map').style.visibility = v === 'map' || v === 'explore' ? 'visible' : 'hidden';
+    if(v !== 'map') $('mineSheet').classList.remove('open');
     if(v === 'map' || v === 'explore') ensureMap();
     refresh();
     if(v === 'explore') loadPublic();
+    if(v === 'profile') loadMine();
     if(v === 'feed' && !feed.length && !feedLoading){ if(!lastFix) feedSort = 'new'; loadFeed(true); }
     else if(v === 'map' && was === 'explore') fitPins();
   }
-  const base = () => view === 'explore' ? pub.filter(p => !hiddenPub.has(p.id)) : view === 'feed' ? feed.filter(p => !hiddenPub.has(p.id)) : spots;
+  const base = () => view === 'explore' ? pub.filter(p => !hiddenPub.has(p.id)) : view === 'feed' ? feed.filter(p => !hiddenPub.has(p.id)) : view === 'profile' ? [] : spots;
+
+  /* Swipe-up sheet on the map: every photo you've taken */
+  const mineSheet = $('mineSheet');
+  function setMine(open){ mineSheet.classList.toggle('open', open); if(open) hideSheet(); }
+  (() => {
+    let y0 = null, moved = false;
+    $('mineHead').addEventListener('touchstart', e => { y0 = e.touches[0].clientY; moved = false; }, { passive:true });
+    $('mineHead').addEventListener('touchmove', e => { if(y0 != null && Math.abs(e.touches[0].clientY - y0) > 8) moved = true; }, { passive:true });
+    $('mineHead').addEventListener('touchend', e => {
+      if(y0 == null) return; const dy = e.changedTouches[0].clientY - y0; y0 = null;
+      if(dy < -25) setMine(true); else if(dy > 25) setMine(false);
+    });
+    $('mineHead').addEventListener('click', () => { if(!moved) setMine(!mineSheet.classList.contains('open')); moved = false; });
+  })();
   const passes = s => { const f = flatTags(s.tags); for(const k of filters) if(k === 'fav' ? !s.fav : !f.includes(k)) return false; return true; };
   const visible = () => base().filter(passes);
   const imgFor = s => s.pub ? (signed.get(s.thumb_path) || '') : urlFor(s);
@@ -627,14 +705,17 @@
     const order = (used.has('fav') ? ['fav'] : []).concat(Object.keys(OPT).filter(k => used.has(k)));
     $('filters').innerHTML = order.map(k => chipHTML(k, filters.has(k))).join('');
     const vis = b.filter(passes);
+    if(view === 'profile'){ $('countLabel').textContent = ''; renderProfileTab(); renderEmpty(); return; }
     if(view === 'feed'){ $('countLabel').textContent = `${vis.length} posts`; renderFeed(vis); renderEmpty(); updateCounts(); return; }
     if(view === 'explore') $('countLabel').textContent = pubLoading && !pub.length ? 'Loading' : `${vis.length} public`;
     else $('countLabel').textContent = filters.size ? `${vis.length} of ${b.length}` : `${b.length} spot${b.length === 1 ? '' : 's'}`;
-    if(view !== 'explore') $('album').innerHTML = vis.map(s => `<button data-id="${s.id}"><img src="${urlFor(s)}" alt="" loading="lazy">${s.fav ? `<svg class="heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.6 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg>` : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('');
+    $('mineCount').textContent = filters.size ? `${vis.length} of ${b.length}` : String(spots.length);
+    if(view === 'map') $('album').innerHTML = vis.map(s => `<button data-id="${s.id}"><img src="${urlFor(s)}" alt="" loading="lazy">${s.fav ? `<svg class="heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.6 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg>` : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('');
     drawPins(vis); renderEmpty(); updateCounts();
   }
   function renderEmpty(){
     const e = $('empty');
+    if(view === 'profile'){ e.style.display = 'none'; return; }
     if(view === 'feed'){
       const msg = feedErr || (feedLoading || visible().length ? '' : feed.length ? 'No posts match those tags. Tap a highlighted tag above to remove it.' : 'Nothing posted yet. Open one of your spots and tap Share to public map to post the first one.');
       e.textContent = msg; e.style.display = msg ? 'block' : 'none'; if(msg) e.style.top = '64px'; return;
@@ -655,6 +736,7 @@
   });
   $('album').addEventListener('click', e => {
     const b = e.target.closest('button[data-id]'); if(!b) return;
+    setMine(false);
     showSheet(spots.find(s => s.id === b.dataset.id));
   });
 
@@ -665,7 +747,7 @@
     const c = spots[0] || lastFix;
     map = new mapboxgl.Map({ container:'map', style:DARK,
       center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11 });
-    map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'bottom-right');
+    map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'top-right');
     map.on('load', () => { mapReady = true; drawPins(visible()); if(view === 'explore') loadPublic(); else fitPins(); });
     map.on('zoomend', autoOpen);
     map.on('moveend', () => { if(view === 'explore' && !adjusting){ clearTimeout(pubTimer); pubTimer = setTimeout(loadPublic, 350); } });
@@ -684,7 +766,7 @@
   const OPEN_ZOOM = 18, REARM_ZOOM = 17;
   let lastAuto = null;
   function autoOpen(){
-    if(view === 'album' || !drawerOpen || adjusting) return;
+    if((view !== 'map' && view !== 'explore') || !drawerOpen || adjusting || mineSheet.classList.contains('open')) return;
     const z = map.getZoom();
     if(z < REARM_ZOOM){ lastAuto = null; return; }
     if(z < OPEN_ZOOM || openSpot) return;
@@ -1058,7 +1140,7 @@
       r = await sb.from('spots').insert({ id, photo_path:photo, thumb_path:thumb, lat:s.lat, lng:s.lng, heading:s.heading ?? null, note:s.note || null, tags:s.tags || {}, is_public:true });
       if(r.error) throw r.error;
       s.cloudId = id; s.cloudPaths = [photo, thumb]; await putSpot(s);
-      feed = []; feedDone = false;
+      feed = []; feedDone = false; mine = [];
       closeDlg(); showSheet(s); toast('Shared to the public map and feed');
     }catch(e){
       bucket.remove([photo, thumb]).catch(() => {});
@@ -1080,7 +1162,7 @@
     if(!(await removeCloud(id, paths))) return;
     const local = s.pub ? spots.find(x => x.cloudId === id) : s;
     if(local){ delete local.cloudId; delete local.cloudPaths; await putSpot(local); }
-    pub = pub.filter(p => p.id !== id); feed = feed.filter(p => p.id !== id);
+    pub = pub.filter(p => p.id !== id); feed = feed.filter(p => p.id !== id); mine = mine.filter(p => p.id !== id);
     hideSheet(); refresh(); toast('Removed from the public map');
   }
   async function syncCloud(s){
@@ -1120,16 +1202,45 @@
   /* Profile (on this phone for now, maps to an online account later) */
   let profile = { id:'me', username:'', location:'', email:'', photo:null }, newPhoto;
   const avatarURL = () => profile.photo ? (profile._url || (profile._url = URL.createObjectURL(profile.photo))) : null;
-  function renderAvatar(){
-    const u = avatarURL();
-    $('avatarBtn').innerHTML = u ? `<img src="${u}" alt="">` : (profile.username ? esc(profile.username[0].toUpperCase()) : '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>');
+  function renderAvatar(){ if(view === 'profile') renderProfileTab(); }
+
+  /* Profile tab: only what you've published publicly */
+  let mine = [], mineLoading = false, mineErr = '', mineSeq = 0;
+  async function loadMine(){
+    if(!sb || !session){ mine = []; mineErr = ''; return refresh(); }
+    const seq = ++mineSeq; mineLoading = true; mineErr = ''; refresh();
+    const r = await sb.from('spots').select('id,user_id,note,tags,lat,lng,heading,created_at,photo_path,thumb_path,hidden')
+      .eq('user_id', session.user.id).eq('is_public', true).order('created_at', { ascending:false });
+    if(seq !== mineSeq) return;
+    if(r.error){ mineLoading = false; mineErr = "Couldn't load your posts. Check your connection."; return refresh(); }
+    await enrich(r.data, 'thumb_path');
+    if(seq !== mineSeq) return;
+    mine = r.data.map(toPub); mineLoading = false; refresh();
   }
+  function renderProfileTab(){
+    const u = avatarURL(), name = (cloudProfile && cloudProfile.username) || profile.username;
+    const av = u ? `<img src="${u}" alt="">` : name ? esc(name[0].toUpperCase()) : '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
+    let h = `<div class="ptop"><div class="pav">${av}</div><div class="pwho"><div class="pname">${name ? '@' + esc(name) : 'Your profile'}</div>${profile.location ? `<div class="pcity">${esc(profile.location)}</div>` : ''}</div><button class="chip" id="editProf">Edit</button></div>`;
+    if(!sb) h += '<div class="pcard"><p>Can\'t reach FlicMap right now. Check your connection.</p></div>';
+    else if(!session) h += `<div class="pcard"><p>Sign in to publish spots to the feed. Everything you publish shows up here.</p>${btn('ptSignIn', 'solid', 'Sign in')}</div>`;
+    else{
+      h += `<div class="plist">Published<span>${mine.length}</span></div>`;
+      if(mineErr) h += `<div class="phint" style="padding:0 16px">${mineErr}</div>`;
+      else if(mineLoading && !mine.length) h += '<div class="phint" style="padding:0 16px">Loading</div>';
+      else if(!mine.length) h += '<div class="phint" style="padding:0 16px">Nothing published yet. Open a spot on the map and tap Share to public map.</div>';
+      else h += `<div class="album">${mine.map(s => `<button data-id="${s.id}"${s.hidden ? ' class="dim"' : ''}><img src="${imgFor(s)}" alt="" loading="lazy">${s.hidden ? '<em>Under review</em>' : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('')}</div>`;
+    }
+    $('ptab').innerHTML = h;
+  }
+  $('ptab').addEventListener('click', e => {
+    if(e.target.closest('#editProf') || e.target.closest('#ptSignIn')) return openProfile();
+    const b = e.target.closest('button[data-id]'); if(b) showSheet(mine.find(m => m.id === b.dataset.id));
+  });
   function setPhotoPreview(url){
     const box = $('pphoto'), img = box.querySelector('img');
     if(img) img.remove();
     if(url){ const i = document.createElement('img'); i.src = url; i.alt = ''; box.prepend(i); }
   }
-  $('avatarBtn').onclick = () => openProfile();
   function openProfile(msg){
     newPhoto = undefined;
     $('pUser').value = profile.username; $('pLoc').value = profile.location; $('pEmail').value = profile.email;
@@ -1167,7 +1278,7 @@
     profile.username = u; profile.location = $('pLoc').value.trim(); profile.email = em;
     if(newPhoto !== undefined){ if(profile._url) URL.revokeObjectURL(profile._url); profile._url = null; profile.photo = newPhoto; }
     const { _url, ...store } = profile;
-    try{ await putProfile(store); renderAvatar(); $('profile').classList.remove('show'); toast('Profile saved'); }
+    try{ await putProfile(store); renderAvatar(); $('profile').classList.remove('show'); refresh(); toast('Profile saved'); }
     catch(err){ toast('Could not save profile'); }
   };
 
@@ -1227,6 +1338,7 @@
     if($('profile').classList.contains('show')) renderAcct();
     if(session) setTimeout(loadCloudProfile, 0); else cloudProfile = null;
     if(view === 'explore') setTimeout(loadPublic, 0);
+    if(view === 'profile') setTimeout(loadMine, 0);
   }
   if(sb){
     sb.auth.onAuthStateChange((ev, sess) => onSession(sess));
