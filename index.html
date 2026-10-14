@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --white:#fff; --ink:#f2f2f2; --muted:#9a9a9a;
@@ -167,6 +168,48 @@
   .phint{font-size:12px;color:var(--muted);margin:6px 2px 0;line-height:1.4}
   .phint.err{color:#ff453a}
   .pfoot{flex:none;padding:12px 18px calc(var(--safe-b) + 14px);border-top:1px solid #1a1a1a}
+  .seg{max-width:300px}
+  #map .mapboxgl-canvas{filter:grayscale(1) contrast(1.08)}
+  .drawer.adjusting #map .mapboxgl-canvas{filter:none}
+  .pin.mine .face{border-color:var(--signal)}
+  .pin .face.blank{background:#2a2a2a}
+  .titlebtn.ro{pointer-events:none}
+  .titlebtn.ro svg{display:none}
+  .status{font-size:13px;color:var(--signal);font-weight:600;margin:0 2px 12px}
+  .sheet #sheetActions .row{margin-top:10px}
+  .sheet #sheetActions .row:first-child{margin-top:0}
+
+  /* Pin fixing */
+  #adjustUI{position:absolute;inset:0;z-index:3;pointer-events:none;display:none}
+  .drawer.adjusting #adjustUI{display:block}
+  .drawer.adjusting .dhead{pointer-events:none;opacity:.35}
+  .drawer.adjusting .mapboxgl-ctrl-bottom-right{display:none}
+  .xhair{position:absolute;left:50%;top:50%;width:44px;height:58px;margin:-58px 0 0 -22px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.6))}
+  .xhair svg{width:100%;height:100%;display:block}
+  .shotdot{width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #000;box-shadow:0 0 0 2px #fff}
+  .satbtn{position:absolute;top:12px;right:12px;pointer-events:auto;padding:9px 14px;border-radius:99px;background:rgba(10,10,10,.85);font-weight:700;font-size:13px}
+  .abar{position:absolute;left:12px;right:12px;bottom:calc(var(--safe-b) + 12px);pointer-events:auto;background:rgba(10,10,10,.92);
+    border-radius:18px;padding:14px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .abar p{margin:0 0 3px;font-weight:700;font-size:15px}
+  .abar small{display:block;color:var(--muted);font-size:13px;margin-bottom:12px}
+
+  /* Dialogs */
+  .dlg{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:none;align-items:flex-end}
+  .dlg.show{display:flex}
+  .dbox{width:100%;background:#111;border-radius:22px 22px 0 0;padding:20px 18px calc(var(--safe-b) + 16px);max-height:90vh;overflow-y:auto}
+  .dbox h3{margin:0 0 8px;font-size:20px}
+  .dbox p{margin:0 0 14px;color:#bbb;font-size:15px;line-height:1.45}
+  .dbox p strong{color:var(--white)}
+  .check{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:14px;background:#1b1b1b;margin:0 0 16px;font-size:15px;line-height:1.4}
+  .check input{width:22px;height:22px;flex:none;accent-color:var(--signal);margin:0}
+  .warn{padding:14px;border-radius:14px;border:1px solid rgba(255,214,10,.45);margin:0 0 14px;font-size:14px;line-height:1.45}
+  .warn button{display:block;margin-top:10px;font-weight:700;color:var(--signal)}
+  .opts{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
+  .opts button{padding:14px;border-radius:14px;background:#1b1b1b;text-align:left;font-size:15px}
+  .opts button[aria-pressed="true"]{background:var(--white);color:#000;font-weight:700}
+  .acct{margin-top:24px;padding-top:6px;border-top:1px solid #1a1a1a}
+  .acct .btn{width:100%;margin-top:10px}
+  .note:disabled{opacity:.6}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -205,6 +248,7 @@
       <div class="seg" role="group" aria-label="View">
         <button id="segMap" aria-pressed="true">Map</button>
         <button id="segAlbum" aria-pressed="false">Album</button>
+        <button id="segExplore" aria-pressed="false">Explore</button>
       </div>
       <div class="count" id="countLabel">0 spots</div>
       <button class="closeX" id="closeDrawer" aria-label="Back to camera">
@@ -215,6 +259,15 @@
   </div>
   <div class="dbody">
     <div id="map"></div>
+    <div id="adjustUI">
+      <div class="xhair"><svg viewBox="0 0 44 58" aria-hidden="true"><path d="M22 56S4 34 4 21a18 18 0 0 1 36 0c0 13-18 35-18 35z" fill="#ffd60a" stroke="#000" stroke-width="2.5"/><circle cx="22" cy="21" r="6.5" fill="#000"/></svg></div>
+      <button class="satbtn" id="adjSat">Street map</button>
+      <div class="abar">
+        <p>Drag the map until the pin sits on the spot</p>
+        <small id="adjDist"></small>
+        <div class="row"><button class="btn ghost" id="adjCancel">Cancel</button><button class="btn solid" id="adjSave">Save pin</button></div>
+      </div>
+    </div>
     <div class="album" id="album"></div>
     <div class="empty" id="empty"></div>
   </div>
@@ -231,15 +284,11 @@
   </div>
   <div class="meta" id="sheetMeta"></div>
   <div class="chips" id="sheetTags"></div>
-  <div class="row">
-    <button class="btn solid" id="appleBtn">Apple Maps</button>
-    <button class="btn ghost" id="googleBtn">Google Maps</button>
-  </div>
-  <div class="row">
-    <button class="btn ghost" id="editBtn">Edit tags</button>
-    <button class="btn danger" id="deleteBtn">Delete</button>
-  </div>
+  <div class="status" id="sheetStatus" hidden></div>
+  <div id="sheetActions"></div>
 </div>
+
+<div class="dlg" id="dlg"><div class="dbox" id="dlgBox"></div></div>
 
 <section class="review" id="review">
   <img id="reviewImg" alt="">
@@ -268,7 +317,7 @@
     <input class="note" id="pLoc" maxlength="40" placeholder="City, like Savannah, GA">
     <label class="plabel" for="pEmail">Email</label>
     <input class="note" id="pEmail" type="email" maxlength="80" autocapitalize="off" placeholder="you@email.com">
-    <div class="phint">Saved only on this phone for now. This becomes your login when FlicMap goes online.</div>
+    <div class="acct" id="acct"></div>
   </div>
   <div class="pfoot"><button class="btn solid" id="saveProfile" style="width:100%">Save profile</button></div>
 </section>
@@ -279,6 +328,12 @@
 (() => {
   // Public Mapbox token (pk), locked to gxmichu.github.io in Mapbox. Split so GitHub's scanner doesn't block it.
   const MAPBOX_TOKEN = ['pk', 'eyJ1IjoidHJhdnhwcnoiLCJhIjoiY211bzNqdGN0MDFjYzJ4cHp1a280a2VqdCJ9', 'emltSInnaZZMiexFIEsxIA'].join('.');
+
+  // Supabase publishable key is meant to be public; the database rules decide what anyone can do.
+  const SB_URL = 'https://pkldtyjilkeomypaozkh.supabase.co';
+  const SB_KEY = ['sb_publishable', 'kUGjQP8CtWYEszFHcnMdBg_o6StDzHz'].join('_');
+  const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:false } }) : null;
+  const DARK = 'mapbox://styles/mapbox/dark-v11', SAT = 'mapbox://styles/mapbox/satellite-streets-v12';
 
   /* Tag system. multi = pick several, otherwise pick one */
   const TAGS = [
@@ -326,6 +381,12 @@
   let spots = [], urls = new Map();
   let editing = null; // { mode:'new'|'edit', spot, tags }
   let view = 'map', filters = new Set(), openSpot = null;
+  let session = null, cloudProfile = null, codeSent = false;
+  let pub = [], pubLoading = false, pubError = '', pubTimer = null, pubSeq = 0;
+  const signed = new Map(), names = new Map();
+  let hiddenPub = new Set();
+  try{ hiddenPub = new Set(JSON.parse(localStorage.getItem('fm_hidden') || '[]')); }catch(e){}
+  const saveHidden = () => { try{ localStorage.setItem('fm_hidden', JSON.stringify([...hiddenPub])); }catch(e){} };
 
   /* Storage */
   const dbReady = new Promise((res, rej) => {
@@ -464,7 +525,7 @@
         await putSpot(s); spots.unshift(s); closeReview(); updateCounts(); toast('Spot saved');
       }else{
         const s = editing.spot; s.note = $('noteInput').value.trim(); s.tags = editing.tags;
-        await putSpot(s); closeReview(); refresh(); showSheet(s); toast('Changes saved');
+        await putSpot(s); syncCloud(s); closeReview(); refresh(); showSheet(s); toast('Changes saved');
       }
     }catch(e){ toast('Could not save. Try again.'); $('saveBtn').disabled = false; }
   };
@@ -479,7 +540,7 @@
   }
   function closeDrawer(){
     drawer.style.transition = ''; drawer.style.transform = ''; drawer.classList.remove('open');
-    hideSheet(); if(!drawerOpen) return; drawerOpen = false; startCamera();
+    endAdjust(); hideSheet(); if(!drawerOpen) return; drawerOpen = false; startCamera();
   }
   function dragger(zoneTest, fromOpen){
     let y0 = null, t0 = 0, dy = 0;
@@ -510,30 +571,43 @@
   /* Map and album */
   $('segMap').onclick = () => setView('map');
   $('segAlbum').onclick = () => setView('album');
+  $('segExplore').onclick = () => setView('explore');
   function setView(v){
-    view = v;
-    $('segMap').setAttribute('aria-pressed', v === 'map'); $('segAlbum').setAttribute('aria-pressed', v === 'album');
+    endAdjust();
+    const was = view; view = v;
+    $('segMap').setAttribute('aria-pressed', v === 'map'); $('segAlbum').setAttribute('aria-pressed', v === 'album'); $('segExplore').setAttribute('aria-pressed', v === 'explore');
     $('album').classList.toggle('show', v === 'album');
-    $('map').style.visibility = v === 'map' ? 'visible' : 'hidden';
-    if(v === 'map') ensureMap();
-    renderEmpty();
+    $('map').style.visibility = v === 'album' ? 'hidden' : 'visible';
+    if(v !== 'album') ensureMap();
+    refresh();
+    if(v === 'explore') loadPublic();
+    else if(v === 'map' && was === 'explore') fitPins();
   }
-  const visible = () => spots.filter(s => { const f = flatTags(s.tags); for(const k of filters) if(k === 'fav' ? !s.fav : !f.includes(k)) return false; return true; });
+  const base = () => view === 'explore' ? pub.filter(p => !hiddenPub.has(p.id)) : spots;
+  const passes = s => { const f = flatTags(s.tags); for(const k of filters) if(k === 'fav' ? !s.fav : !f.includes(k)) return false; return true; };
+  const visible = () => base().filter(passes);
+  const imgFor = s => s.pub ? (signed.get(s.thumb_path) || '') : urlFor(s);
   function updateCounts(){
     $('pullText').innerHTML = spots.length ? `Swipe up for your <b>${spots.length}</b> spot${spots.length === 1 ? '' : 's'}` : 'Swipe up for your spots';
   }
   function refresh(){
-    const used = new Set(); spots.forEach(s => { flatTags(s.tags).forEach(k => used.add(k)); if(s.fav) used.add('fav'); });
+    const b = base();
+    const used = new Set(); b.forEach(s => { flatTags(s.tags).forEach(k => used.add(k)); if(s.fav) used.add('fav'); });
     [...filters].forEach(k => { if(!used.has(k)) filters.delete(k); });
     const order = (used.has('fav') ? ['fav'] : []).concat(Object.keys(OPT).filter(k => used.has(k)));
     $('filters').innerHTML = order.map(k => chipHTML(k, filters.has(k))).join('');
-    const vis = visible();
-    $('countLabel').textContent = filters.size ? `${vis.length} of ${spots.length}` : `${spots.length} spot${spots.length === 1 ? '' : 's'}`;
-    $('album').innerHTML = vis.map(s => `<button data-id="${s.id}"><img src="${urlFor(s)}" alt="" loading="lazy">${s.fav ? `<svg class="heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.6 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg>` : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('');
+    const vis = b.filter(passes);
+    if(view === 'explore') $('countLabel').textContent = pubLoading && !pub.length ? 'Loading' : `${vis.length} public`;
+    else $('countLabel').textContent = filters.size ? `${vis.length} of ${b.length}` : `${b.length} spot${b.length === 1 ? '' : 's'}`;
+    if(view !== 'explore') $('album').innerHTML = vis.map(s => `<button data-id="${s.id}"><img src="${urlFor(s)}" alt="" loading="lazy">${s.fav ? `<svg class="heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.6 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg>` : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('');
     drawPins(vis); renderEmpty(); updateCounts();
   }
   function renderEmpty(){
     const e = $('empty');
+    if(view === 'explore'){
+      const msg = pubError || (pubLoading ? '' : !visible().length ? (pub.length ? 'No public spots match those tags. Tap a highlighted tag above to remove it.' : 'No public spots in this area yet. Share one of yours from its spot page and it shows up here for everyone.') : '');
+      e.textContent = msg; e.style.display = msg ? 'block' : 'none'; return;
+    }
     if(!spots.length){ e.textContent = 'No spots yet. Swipe down, point your camera at somewhere worth coming back to, and tap the shutter.'; e.style.display = 'block'; }
     else if(!visible().length){ e.textContent = 'No spots match those tags. Tap a highlighted tag above to remove it.'; e.style.display = 'block'; }
     else e.style.display = 'none';
@@ -548,16 +622,18 @@
     showSheet(spots.find(s => s.id === b.dataset.id));
   });
 
-  let map = null, markers = [];
+  let map = null, markers = [], mapReady = false;
   function ensureMap(){
     if(map){ map.resize(); return; }
     mapboxgl.accessToken = MAPBOX_TOKEN;
     const c = spots[0] || lastFix;
-    map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/dark-v11',
+    map = new mapboxgl.Map({ container:'map', style:DARK,
       center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11 });
     map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'bottom-right');
-    map.on('load', () => { drawPins(visible()); fitPins(); });
+    map.on('load', () => { mapReady = true; drawPins(visible()); if(view === 'explore') loadPublic(); else fitPins(); });
     map.on('zoomend', autoOpen);
+    map.on('moveend', () => { if(view === 'explore' && !adjusting){ clearTimeout(pubTimer); pubTimer = setTimeout(loadPublic, 350); } });
+    map.on('move', () => { if(adjusting) adjustInfo(); });
     map.on('error', e => {
       const st = e && e.error && e.error.status;
       if(st === 401 || st === 403){
@@ -571,7 +647,7 @@
   const OPEN_ZOOM = 18, REARM_ZOOM = 17;
   let lastAuto = null;
   function autoOpen(){
-    if(view !== 'map' || !drawerOpen) return;
+    if(view === 'album' || !drawerOpen || adjusting) return;
     const z = map.getZoom();
     if(z < REARM_ZOOM){ lastAuto = null; return; }
     if(z < OPEN_ZOOM || openSpot) return;
@@ -584,15 +660,16 @@
     if(!map) return;
     markers.forEach(m => m.remove()); markers = [];
     list.forEach(s => {
-      const el = document.createElement('button');
-      el.className = 'pin' + (s.fav ? ' fav' : ''); el.setAttribute('aria-label', s.note || 'Saved spot');
-      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') + `<div class="face"><img src="${urlFor(s)}" alt=""></div>`;
+      if(adjusting && adjusting.s === s) return;
+      const el = document.createElement('button'), img = imgFor(s);
+      el.className = 'pin' + (s.fav ? ' fav' : '') + (s.mine ? ' mine' : ''); el.setAttribute('aria-label', s.note || 'Saved spot');
+      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') + (img ? `<div class="face"><img src="${img}" alt=""></div>` : '<div class="face blank"></div>');
       el.onclick = ev => { ev.stopPropagation(); showSheet(s); };
       markers.push(new mapboxgl.Marker({ element:el }).setLngLat([s.lng, s.lat]).addTo(map));
     });
   }
   function fitPins(){
-    const list = visible(); if(!map || !list.length) return;
+    const list = visible(); if(!map || !list.length || view === 'explore') return;
     if(list.length === 1) return map.easeTo({ center:[list[0].lng, list[0].lat], zoom:15, duration:0 });
     const b = new mapboxgl.LngLatBounds(); list.forEach(s => b.extend([s.lng, s.lat]));
     map.fitBounds(b, { padding:70, maxZoom:15, duration:0 });
@@ -602,12 +679,22 @@
   function showSheet(s, zoomed){
     if(!s) return; openSpot = s;
     $('sheet').classList.toggle('zoomed', !!zoomed);
-    $('favBtn').setAttribute('aria-pressed', !!s.fav);
-    $('sheetImg').src = urlFor(s);
+    $('favBtn').setAttribute('aria-pressed', !!s.fav); $('favBtn').hidden = !!s.pub;
     renderTitle(s); closeRename(false);
-    const d = new Date(s.ts);
-    $('sheetMeta').innerHTML = `<span>${d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}, ${d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</span>` +
-      (s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '') + `<span>within ${Math.round(s.acc)}m</span>`;
+    const d = new Date(s.ts), day = d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}), facing = s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '';
+    if(s.pub){
+      $('sheetImg').src = imgFor(s);
+      fullUrl(s.photo_path).then(u => { if(u && openSpot === s) $('sheetImg').src = u; });
+      $('sheetMeta').innerHTML = (s.username ? `<span>by <strong>@${esc(s.username)}</strong></span>` : '') + `<span>${day}</span>` + facing;
+    }else{
+      $('sheetImg').src = urlFor(s);
+      $('sheetMeta').innerHTML = `<span>${day}, ${d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</span>` + facing +
+        (s.moved ? '<span>pin set by hand</span>' : `<span>within ${Math.round(s.acc)}m</span>`);
+    }
+    const st = s.pub ? (s.mine ? (s.hidden ? 'Hidden while a report on it is reviewed' : 'Your spot, shared publicly') : '')
+      : s.from ? `Saved from ${s.from.username ? '@' + s.from.username : 'the public map'}` : s.cloudId ? 'On the public map' : '';
+    $('sheetStatus').textContent = st; $('sheetStatus').hidden = !st;
+    renderActions(s);
     const tags = flatTags(s.tags);
     $('sheetTags').innerHTML = tags.length ? tags.map(k => chipHTML(k, null, 'span')).join('') : '';
     $('sheet').scrollTop = 0;
@@ -616,9 +703,10 @@
   function renderTitle(s){
     $('sheetTitle').textContent = s.note || 'Untitled spot';
     $('titleBtn').classList.toggle('untitled', !s.note);
+    $('titleBtn').classList.toggle('ro', !!s.pub);
   }
   function openRename(){
-    if(!openSpot) return;
+    if(!openSpot || openSpot.pub) return;
     const i = $('titleInput');
     i.value = openSpot.note || '';
     $('titleBtn').hidden = true; i.hidden = false;
@@ -633,7 +721,8 @@
     if(v === (openSpot.note || '')) return;
     openSpot.note = v;
     renderTitle(openSpot);
-    putSpot(openSpot).then(() => { refresh(); toast(v ? 'Spot renamed' : 'Name cleared'); });
+    const sp = openSpot;
+    putSpot(sp).then(() => { syncCloud(sp); refresh(); toast(v ? 'Spot renamed' : 'Name cleared'); });
   }
   $('titleBtn').onclick = openRename;
   $('titleInput').addEventListener('keydown', e => {
@@ -643,8 +732,6 @@
   $('titleInput').addEventListener('blur', () => closeRename(true));
   function hideSheet(){ closeRename(true); $('sheet').classList.remove('show'); $('scrim').classList.remove('show'); openSpot = null; }
   $('scrim').onclick = hideSheet;
-  $('appleBtn').onclick = () => openSpot && (location.href = `https://maps.apple.com/?daddr=${openSpot.lat},${openSpot.lng}`);
-  $('googleBtn').onclick = () => openSpot && window.open(`https://www.google.com/maps/dir/?api=1&destination=${openSpot.lat},${openSpot.lng}`, '_blank');
   $('favBtn').onclick = async () => {
     if(!openSpot) return;
     openSpot.fav = !openSpot.fav;
@@ -652,12 +739,229 @@
     await putSpot(openSpot); refresh();
     toast(openSpot.fav ? 'Added to favorites' : 'Removed from favorites');
   };
-  $('editBtn').onclick = () => { if(openSpot){ const s = openSpot; hideSheet(); openEditor(s); } };
-  $('deleteBtn').onclick = async () => {
-    if(!openSpot || !confirm('Delete this spot? This cannot be undone.')) return;
-    await delSpot(openSpot.id); spots = spots.filter(s => s.id !== openSpot.id);
+
+  const btn = (id, cls, label) => `<button class="btn ${cls}" id="${id}">${label}</button>`, row = h => `<div class="row">${h}</div>`;
+  function renderActions(s){
+    let h = row(btn('appleBtn','solid','Apple Maps') + btn('googleBtn','ghost','Google Maps'));
+    if(!s.pub){
+      h += row(btn('fixBtn','ghost','Fix pin') + btn('editBtn','ghost','Edit tags'));
+      if(s.cloudId) h += row(btn('unshareBtn','ghost','Remove from public map'));
+      else if(!s.from) h += row(btn('shareBtn','ghost','Share to public map'));
+      h += row(btn('deleteBtn','danger','Delete'));
+    }else if(s.mine){
+      h += row(btn('unshareBtn','ghost','Remove from public map'));
+    }else{
+      h += row(btn('copyBtn','ghost','Save to my spots'));
+      h += row(btn('hideBtn','ghost','Hide') + btn('reportBtn','danger','Report'));
+    }
+    $('sheetActions').innerHTML = h;
+  }
+  $('sheetActions').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b || !openSpot) return;
+    const s = openSpot, act = {
+      appleBtn: () => location.href = `https://maps.apple.com/?daddr=${s.lat},${s.lng}`,
+      googleBtn: () => window.open(`https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}`, '_blank'),
+      fixBtn: () => startAdjust(s),
+      editBtn: () => { hideSheet(); openEditor(s); },
+      shareBtn: () => openShare(s),
+      unshareBtn: () => unshare(s),
+      deleteBtn: () => deleteLocal(s),
+      copyBtn: () => copyToMine(s),
+      hideBtn: () => { hiddenPub.add(s.id); saveHidden(); hideSheet(); refresh(); toast("Hidden. You won't see it again."); },
+      reportBtn: () => openReport(s)
+    }[b.id];
+    if(act) act();
+  });
+  async function deleteLocal(s){
+    if(!confirm(s.cloudId ? 'Delete this spot? It also comes off the public map. This cannot be undone.' : 'Delete this spot? This cannot be undone.')) return;
+    if(s.cloudId && !(await removeCloud(s.cloudId, s.cloudPaths))) return;
+    await delSpot(s.id); spots = spots.filter(x => x !== s);
     hideSheet(); refresh();
+  }
+
+  /* Fix pin: drag the map under a fixed pin, Uber style */
+  let adjusting = null, shotMarker = null, adjSat = true;
+  const ft = m => Math.round(m * 3.281);
+  function dist([lng1, lat1], [lng2, lat2]){
+    const R = 6371000, r = Math.PI / 180, a = Math.sin((lat2 - lat1) * r / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin((lng2 - lng1) * r / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+  function startAdjust(s){
+    hideSheet(); closeDlg();
+    if(view !== 'map') setView('map');
+    ensureMap();
+    const go = () => {
+      adjusting = { s, from:[s.shotLng ?? s.lng, s.shotLat ?? s.lat] };
+      drawer.classList.add('adjusting');
+      adjSat = true; $('adjSat').textContent = 'Street map'; map.setStyle(SAT);
+      const el = document.createElement('div'); el.className = 'shotdot';
+      shotMarker = new mapboxgl.Marker({ element:el }).setLngLat(adjusting.from).addTo(map);
+      drawPins(visible());
+      map.jumpTo({ center:[s.lng, s.lat], zoom:Math.max(19, map.getZoom()) });
+      adjustInfo();
+    };
+    mapReady ? go() : map.once('load', go);
+  }
+  function adjustInfo(){
+    if(!adjusting) return;
+    const c = map.getCenter(), d = dist(adjusting.from, [c.lng, c.lat]);
+    $('adjDist').textContent = d < 2 ? 'Pin is where you stood (white dot)' : `${ft(d)} ft from where you stood (white dot)`;
+  }
+  function endAdjust(){
+    if(!adjusting) return null;
+    const s = adjusting.s; adjusting = null;
+    drawer.classList.remove('adjusting');
+    if(shotMarker){ shotMarker.remove(); shotMarker = null; }
+    map.setStyle(DARK);
+    drawPins(visible());
+    return s;
+  }
+  $('adjSat').onclick = () => { adjSat = !adjSat; map.setStyle(adjSat ? SAT : DARK); $('adjSat').textContent = adjSat ? 'Street map' : 'Satellite'; };
+  $('adjCancel').onclick = () => { const s = endAdjust(); if(s) showSheet(s); };
+  $('adjSave').onclick = async () => {
+    if(!adjusting) return;
+    const c = map.getCenter(), s = adjusting.s, d = dist(adjusting.from, [c.lng, c.lat]);
+    if(d > 300 && !confirm(`That's ${ft(d).toLocaleString()} ft from where you took the photo. Save the pin there anyway?`)) return;
+    if(s.shotLat == null){ s.shotLat = s.lat; s.shotLng = s.lng; }
+    s.lat = c.lat; s.lng = c.lng; s.moved = true;
+    await putSpot(s); syncCloud(s);
+    endAdjust(); refresh(); showSheet(s); toast('Pin moved');
   };
+
+  /* Dialogs */
+  let dlgAct = {};
+  function openDlg(html, acts){ $('dlgBox').innerHTML = html; dlgAct = acts; $('dlg').classList.add('show'); }
+  function closeDlg(){ $('dlg').classList.remove('show'); dlgAct = {}; }
+  $('dlg').addEventListener('click', e => {
+    if(e.target === $('dlg')) return closeDlg();
+    const b = e.target.closest('[data-a]'); if(b && dlgAct[b.dataset.a]) dlgAct[b.dataset.a](b);
+  });
+  $('dlg').addEventListener('change', e => { if(dlgAct.change) dlgAct.change(e); });
+
+  /* Public map */
+  async function loadPublic(){
+    if(!map || !mapReady || view !== 'explore') return;
+    if(!sb){ pubError = "Public map is offline right now. Check your connection and reopen the app."; refresh(); return; }
+    const seq = ++pubSeq; pubLoading = true; pubError = ''; renderEmpty();
+    const b = map.getBounds(), pl = (b.getNorth() - b.getSouth()) * .25, pg = (b.getEast() - b.getWest()) * .25;
+    const { data, error } = await sb.from('spots').select('id,user_id,note,tags,lat,lng,heading,created_at,photo_path,thumb_path,hidden')
+      .eq('is_public', true).gte('lat', b.getSouth() - pl).lte('lat', b.getNorth() + pl).gte('lng', b.getWest() - pg).lte('lng', b.getEast() + pg)
+      .order('created_at', { ascending:false }).limit(300);
+    if(seq !== pubSeq) return;
+    if(error){
+      pubLoading = false; pub = [];
+      pubError = /relation|column|does not exist|schema cache/i.test(error.message || '') ? "The public map isn't switched on in Supabase yet. Run the setup SQL, then come back to Explore." : "Couldn't load public spots. Check your connection and try again.";
+      return refresh();
+    }
+    const ids = [...new Set(data.map(r => r.user_id))].filter(id => !names.has(id));
+    if(ids.length){ const r = await sb.from('profiles').select('id,username').in('id', ids); (r.data || []).forEach(p => names.set(p.id, p.username)); }
+    const need = data.map(r => r.thumb_path).filter(p => p && !signed.has(p));
+    if(need.length){ const r = await sb.storage.from('spot-photos').createSignedUrls(need, 21600); (r.data || []).forEach(x => x.signedUrl && signed.set(x.path, x.signedUrl)); }
+    if(seq !== pubSeq) return;
+    const me = session && session.user.id;
+    pub = data.map(r => ({ pub:true, id:r.id, user_id:r.user_id, mine:r.user_id === me, hidden:r.hidden, note:r.note || '', tags:r.tags || {},
+      lat:r.lat, lng:r.lng, heading:r.heading, ts:Date.parse(r.created_at), photo_path:r.photo_path, thumb_path:r.thumb_path, username:names.get(r.user_id) || '' }));
+    pubLoading = false; refresh();
+  }
+  async function fullUrl(path){
+    if(!path || !sb) return '';
+    if(signed.has(path)) return signed.get(path);
+    const r = await sb.storage.from('spot-photos').createSignedUrl(path, 21600);
+    if(r.data && r.data.signedUrl){ signed.set(path, r.data.signedUrl); return r.data.signedUrl; }
+    return '';
+  }
+  async function makeThumb(blob){
+    const bmp = await createImageBitmap(blob), k = Math.min(1, 360 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return new Promise(r => c.toBlob(r, 'image/jpeg', 0.75));
+  }
+  function needAccount(msg){
+    if(!sb){ toast('No connection to FlicMap right now'); return true; }
+    if(!session){ hideSheet(); openProfile(msg); return true; }
+    return false;
+  }
+  function openShare(s){
+    if(needAccount('Sign in below to share spots')) return;
+    if(!cloudProfile || !cloudProfile.username){ hideSheet(); openProfile('Pick a username first. It shows on spots you share.'); return; }
+    openDlg(`<h3>Share to the public map</h3>
+      <p>Anyone on FlicMap will see this photo, its name, tags and exact pin, with <strong>@${esc(cloudProfile.username)}</strong> on it.</p>
+      ${s.moved ? '' : `<div class="warn">This pin is where you were standing, not the spot itself. People will walk to the exact pin.<button data-a="fix">Fix pin first</button></div>`}
+      <label class="check"><input type="checkbox" id="okPublic"><span>This is a public place, not someone's home, and no stranger's face is the focus.</span></label>
+      <div class="row"><button class="btn ghost" data-a="close">Cancel</button><button class="btn solid" data-a="share" id="doShare" disabled>Share</button></div>`, {
+      change: e => { if(e.target.id === 'okPublic') $('doShare').disabled = !e.target.checked; },
+      close: closeDlg,
+      fix: () => startAdjust(s),
+      share: () => share(s)
+    });
+  }
+  async function share(s){
+    const b = $('doShare'); b.disabled = true; b.textContent = 'Sharing';
+    const uid = session.user.id, id = crypto.randomUUID(), photo = `${uid}/${id}.jpg`, thumb = `${uid}/${id}_t.jpg`, bucket = sb.storage.from('spot-photos');
+    try{
+      const tb = await makeThumb(s.blob);
+      let r = await bucket.upload(photo, s.blob, { contentType:'image/jpeg' }); if(r.error) throw r.error;
+      r = await bucket.upload(thumb, tb, { contentType:'image/jpeg' }); if(r.error) throw r.error;
+      r = await sb.from('spots').insert({ id, photo_path:photo, thumb_path:thumb, lat:s.lat, lng:s.lng, heading:s.heading ?? null, note:s.note || null, tags:s.tags || {}, is_public:true });
+      if(r.error) throw r.error;
+      s.cloudId = id; s.cloudPaths = [photo, thumb]; await putSpot(s);
+      closeDlg(); showSheet(s); toast('Shared to the public map');
+    }catch(e){
+      bucket.remove([photo, thumb]).catch(() => {});
+      b.disabled = false; b.textContent = 'Share';
+      const m = (e && e.message) || '';
+      toast(/limit/i.test(m) ? 'You hit the daily share limit. Try tomorrow.' : /bucket|not found|relation|column|policy/i.test(m) ? "Public map isn't switched on in Supabase yet" : "Couldn't share. Check your signal and try again.");
+    }
+  }
+  async function removeCloud(id, paths){
+    if(needAccount('Sign in below to manage your shared spots')) return false;
+    const { error } = await sb.from('spots').delete().eq('id', id);
+    if(error){ toast("Couldn't reach the public map. Try again with signal."); return false; }
+    if(paths && paths.length) sb.storage.from('spot-photos').remove(paths).catch(() => {});
+    return true;
+  }
+  async function unshare(s){
+    if(!confirm("Take this spot off the public map? Your copy on this phone isn't touched.")) return;
+    const id = s.pub ? s.id : s.cloudId, paths = s.pub ? [s.photo_path, s.thumb_path] : s.cloudPaths;
+    if(!(await removeCloud(id, paths))) return;
+    const local = s.pub ? spots.find(x => x.cloudId === id) : s;
+    if(local){ delete local.cloudId; delete local.cloudPaths; await putSpot(local); }
+    pub = pub.filter(p => p.id !== id);
+    hideSheet(); refresh(); toast('Removed from the public map');
+  }
+  async function syncCloud(s){
+    if(!s || !s.cloudId || !sb || !session) return;
+    const { error } = await sb.from('spots').update({ note:s.note || null, tags:s.tags || {}, lat:s.lat, lng:s.lng, heading:s.heading ?? null }).eq('id', s.cloudId);
+    if(error) toast("Saved here, but the public copy didn't update");
+  }
+  async function copyToMine(s){
+    if(spots.some(x => x.from && x.from.id === s.id)) return toast('Already in your spots');
+    try{
+      const u = await fullUrl(s.photo_path); if(!u) throw 0;
+      const blob = await (await fetch(u)).blob(), ts = Date.now();
+      const n = { id:String(ts), ts, lat:s.lat, lng:s.lng, acc:0, heading:s.heading, note:s.note, tags:Object.assign(emptyTags(), JSON.parse(JSON.stringify(s.tags || {}))),
+        blob, moved:true, from:{ id:s.id, username:s.username } };
+      await putSpot(n); spots.unshift(n); updateCounts(); toast('Saved to your spots');
+    }catch(e){ toast("Couldn't save it. Try again."); }
+  }
+  const REASONS = [['private', "Someone's home or private property"], ['unsafe', 'Unsafe or trespassing'], ['inappropriate', 'Inappropriate photo'], ['spam', 'Spam or wrong location']];
+  function openReport(s){
+    if(needAccount('Sign in below to report spots')) return;
+    let pick = null;
+    openDlg(`<h3>Report this spot</h3><p>What's wrong with it?</p>
+      <div class="opts">${REASONS.map(([k, t]) => `<button data-a="pick" data-r="${k}" aria-pressed="false">${t}</button>`).join('')}</div>
+      <div class="row"><button class="btn ghost" data-a="close">Cancel</button><button class="btn solid" data-a="send" id="doReport" disabled>Report</button></div>`, {
+      close: closeDlg,
+      pick: b => { pick = b.dataset.r; $('dlgBox').querySelectorAll('[data-r]').forEach(x => x.setAttribute('aria-pressed', x === b)); $('doReport').disabled = false; },
+      send: async b => {
+        b.disabled = true;
+        const { error } = await sb.from('spot_reports').insert({ spot_id:s.id, reason:pick });
+        if(error && error.code !== '23505'){ b.disabled = false; return toast("Couldn't send the report. Try again."); }
+        hiddenPub.add(s.id); saveHidden(); closeDlg(); hideSheet(); refresh();
+        toast(error ? 'You already reported this one' : 'Reported. Thanks for flagging it.');
+      }
+    });
+  }
 
   /* Profile (on this phone for now, maps to an online account later) */
   let profile = { id:'me', username:'', location:'', email:'', photo:null }, newPhoto;
@@ -671,13 +975,16 @@
     if(img) img.remove();
     if(url){ const i = document.createElement('img'); i.src = url; i.alt = ''; box.prepend(i); }
   }
-  $('avatarBtn').onclick = () => {
+  $('avatarBtn').onclick = () => openProfile();
+  function openProfile(msg){
     newPhoto = undefined;
     $('pUser').value = profile.username; $('pLoc').value = profile.location; $('pEmail').value = profile.email;
     $('userHint').classList.remove('err'); $('userHint').textContent = 'Letters, numbers, periods and underscores. 3 to 20 characters.';
     setPhotoPreview(avatarURL());
+    codeSent = false; renderAcct();
     $('profile').classList.add('show');
-  };
+    if(msg) toast(msg);
+  }
   $('closeProfile').onclick = () => $('profile').classList.remove('show');
   $('pUser').addEventListener('input', e => { e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''); });
   $('photoInput').addEventListener('change', async e => {
@@ -695,6 +1002,14 @@
     const u = $('pUser').value.trim(), em = $('pEmail').value.trim();
     if(u && !/^[a-z0-9._]{3,20}$/.test(u)){ $('userHint').textContent = 'Username needs 3 to 20 letters, numbers, periods or underscores.'; $('userHint').classList.add('err'); return; }
     if(em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return toast('That email looks off');
+    if(session){
+      const { error } = await sb.from('profiles').upsert({ id:session.user.id, username:u || null, city:$('pLoc').value.trim() || null });
+      if(error){
+        if(error.code === '23505'){ $('userHint').textContent = 'That username is taken. Try another.'; $('userHint').classList.add('err'); return; }
+        return toast("Couldn't save to your account. Try again.");
+      }
+      cloudProfile = { username:u, city:$('pLoc').value.trim() };
+    }
     profile.username = u; profile.location = $('pLoc').value.trim(); profile.email = em;
     if(newPhoto !== undefined){ if(profile._url) URL.revokeObjectURL(profile._url); profile._url = null; profile.photo = newPhoto; }
     const { _url, ...store } = profile;
@@ -702,8 +1017,70 @@
     catch(err){ toast('Could not save profile'); }
   };
 
+  function renderAcct(){
+    const a = $('acct');
+    $('pEmail').disabled = !!session;
+    if(session) $('pEmail').value = session.user.email || '';
+    if(!sb){ a.innerHTML = '<div class="phint">Accounts are offline right now.</div>'; return; }
+    if(session){
+      a.innerHTML = `<label class="plabel">Account</label><div class="phint">Signed in as <strong>${esc(session.user.email || '')}</strong>. Your username and city show on spots you share. Your email stays private.</div>` + btn('signOut', 'ghost', 'Sign out');
+    }else{
+      a.innerHTML = `<label class="plabel">Account</label><div class="phint">Sign in with the email above to share spots on the public map and report bad ones. Anything you don't share stays on this phone.</div>` +
+        (codeSent ? `<input class="note" id="codeInput" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Code from your email">` + btn('verifyCode', 'solid', 'Sign in') + btn('sendCode', 'ghost', 'Send a new code')
+          : btn('sendCode', 'solid', 'Email me a sign in code'));
+    }
+  }
+  $('acct').addEventListener('click', async e => {
+    const b = e.target.closest('button'); if(!b || !sb) return;
+    if(b.id === 'sendCode'){
+      const em = $('pEmail').value.trim();
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return toast('Type your email above first');
+      b.disabled = true;
+      const { error } = await sb.auth.signInWithOtp({ email:em });
+      b.disabled = false;
+      if(error) return toast(/rate|seconds|security/i.test(error.message || '') ? 'Too many codes. Wait a minute, then try again.' : "Couldn't send the code. Try again.");
+      codeSent = true; renderAcct(); toast('Code sent. Check your email.');
+    }else if(b.id === 'verifyCode'){
+      const code = ($('codeInput').value || '').replace(/\D/g, ''), em = $('pEmail').value.trim();
+      if(code.length < 6) return toast('Type the code from the email');
+      b.disabled = true;
+      const { error } = await sb.auth.verifyOtp({ email:em, token:code, type:'email' });
+      b.disabled = false;
+      if(error) return toast("That code didn't work. Check it or send a new one.");
+      codeSent = false; toast('Signed in');
+    }else if(b.id === 'signOut'){
+      await sb.auth.signOut(); cloudProfile = null; toast('Signed out');
+    }
+  });
+  async function loadCloudProfile(){
+    if(!session) return;
+    const { data, error } = await sb.from('profiles').select('username,city').eq('id', session.user.id).maybeSingle();
+    if(error) return;
+    cloudProfile = data || null;
+    if(data && data.username){
+      if(data.username !== profile.username || (data.city && data.city !== profile.location)){
+        profile.username = data.username; if(data.city) profile.location = data.city;
+        const { _url, ...st } = profile; putProfile(st).catch(() => {}); renderAvatar();
+        if($('profile').classList.contains('show')){ $('pUser').value = profile.username; $('pLoc').value = profile.location; }
+      }
+    }else if(profile.username){
+      const r = await sb.from('profiles').upsert({ id:session.user.id, username:profile.username, city:profile.location || null });
+      if(!r.error) cloudProfile = { username:profile.username, city:profile.location };
+    }
+  }
+  function onSession(sess){
+    session = sess || null;
+    if($('profile').classList.contains('show')) renderAcct();
+    if(session) setTimeout(loadCloudProfile, 0); else cloudProfile = null;
+    if(view === 'explore') setTimeout(loadPublic, 0);
+  }
+  if(sb){
+    sb.auth.onAuthStateChange((ev, sess) => onSession(sess));
+    sb.auth.getSession().then(r => onSession(r.data.session)).catch(() => {});
+  }
+
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 1600); }
+  function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), Math.max(1600, m.length * 55)); }
 
   document.addEventListener('visibilitychange', () => {
     if(document.hidden) stopCamera(); else if(cameraIdle()) startCamera();
