@@ -110,10 +110,18 @@
   .empty{position:absolute;left:16px;right:16px;top:24px;z-index:2;padding:18px;border-radius:16px;background:rgba(0,0,0,.85);
     font-size:15px;line-height:1.45;display:none}
 
-  .pin{width:46px;height:46px;position:relative;cursor:pointer}
+  .pin{width:0;height:0;cursor:pointer}
   .pin .cone{position:absolute;left:50%;top:50%;width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;
     border-bottom:44px solid rgba(255,214,10,.45);transform-origin:50% 100%;margin-left:-16px;margin-top:-44px}
-  .pin .face{position:absolute;inset:0;border-radius:50%;border:3px solid var(--white);overflow:hidden;background:#333;box-shadow:0 3px 10px rgba(0,0,0,.5)}
+  .pin .face{position:absolute;left:0;top:0;width:52px;height:52px;padding:0;border-radius:14px;border:2px solid var(--white);overflow:hidden;background:#333;
+    box-shadow:0 6px 16px rgba(0,0,0,.55);transform:translate(-50%,-50%) rotate(var(--rot,0deg));
+    transition:width .25s ease,height .25s ease,border-radius .25s ease,transform .25s ease,opacity .2s}
+  .pin[data-size="main"] .face{width:68px;height:68px;border-radius:18px}
+  .pin[data-size="sub"] .face,.pin[data-size="tuck"] .face{width:44px;height:44px;border-radius:12px}
+  .pin:not([data-size="single"]) .cone{display:none}
+  .pin .badge{position:absolute;left:0;top:0;transform:translate(20px,-48px);padding:3px 8px;border-radius:99px;background:var(--white);color:#000;
+    font-size:12px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.5);white-space:nowrap;pointer-events:none}
+  .pin .badge:empty{display:none}
   .pin .face img{width:100%;height:100%;object-fit:cover;display:block}
 
   /* Spot sheet */
@@ -168,7 +176,23 @@
   .phint{font-size:12px;color:var(--muted);margin:6px 2px 0;line-height:1.4}
   .phint.err{color:#ff453a}
   .pfoot{flex:none;padding:12px 18px calc(var(--safe-b) + 14px);border-top:1px solid #1a1a1a}
-  .seg{max-width:300px}
+  .seg{max-width:340px}
+  .seg button{font-size:13px}
+  @media (max-width:430px){ .count{display:none} }
+  .feed{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding-bottom:calc(var(--safe-b) + 24px)}
+  .feed.show{display:block}
+  .fsort{position:sticky;top:0;z-index:2;display:flex;gap:8px;padding:10px 12px;background:var(--panel)}
+  .fsort .chip{padding:7px 12px;font-size:13px}
+  .card{margin:0 0 20px;cursor:pointer}
+  .chead{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:14px}
+  .cuser{font-weight:700}
+  .ctime{color:var(--muted);font-size:13px}
+  .card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#1a1a1a}
+  .cbody{padding:10px 14px 0}
+  .cbody h4{margin:0 0 4px;font-size:17px;font-weight:700}
+  .cmeta{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .card .chips .chip{padding:5px 9px;font-size:12px}
+  .fmore{display:block;margin:4px auto 20px;padding:12px 20px;border-radius:99px;background:#1b1b1b;font-weight:700;font-size:14px}
   #map .mapboxgl-canvas{filter:grayscale(1) contrast(1.08)}
   .drawer.adjusting #map .mapboxgl-canvas{filter:none}
   .pin.mine .face{border-color:var(--signal)}
@@ -249,6 +273,7 @@
         <button id="segMap" aria-pressed="true">Map</button>
         <button id="segAlbum" aria-pressed="false">Album</button>
         <button id="segExplore" aria-pressed="false">Explore</button>
+        <button id="segFeed" aria-pressed="false">Feed</button>
       </div>
       <div class="count" id="countLabel">0 spots</div>
       <button class="closeX" id="closeDrawer" aria-label="Back to camera">
@@ -269,6 +294,7 @@
       </div>
     </div>
     <div class="album" id="album"></div>
+    <div class="feed" id="feed"><div class="fsort" id="fsort"></div><div id="feedList"></div></div>
     <div class="empty" id="empty"></div>
   </div>
 </section>
@@ -382,6 +408,7 @@
   let editing = null; // { mode:'new'|'edit', spot, tags }
   let view = 'map', filters = new Set(), openSpot = null;
   let session = null, cloudProfile = null, codeSent = false;
+  let feed = [], feedSort = 'near', feedLoading = false, feedDone = false, feedErr = '', feedSeq = 0;
   let pub = [], pubLoading = false, pubError = '', pubTimer = null, pubSeq = 0;
   const signed = new Map(), names = new Map();
   let hiddenPub = new Set();
@@ -572,18 +599,21 @@
   $('segMap').onclick = () => setView('map');
   $('segAlbum').onclick = () => setView('album');
   $('segExplore').onclick = () => setView('explore');
+  $('segFeed').onclick = () => setView('feed');
   function setView(v){
     endAdjust();
     const was = view; view = v;
-    $('segMap').setAttribute('aria-pressed', v === 'map'); $('segAlbum').setAttribute('aria-pressed', v === 'album'); $('segExplore').setAttribute('aria-pressed', v === 'explore');
+    ['Map','Album','Explore','Feed'].forEach(n => $('seg' + n).setAttribute('aria-pressed', v === n.toLowerCase()));
     $('album').classList.toggle('show', v === 'album');
-    $('map').style.visibility = v === 'album' ? 'hidden' : 'visible';
-    if(v !== 'album') ensureMap();
+    $('feed').classList.toggle('show', v === 'feed');
+    $('map').style.visibility = v === 'album' || v === 'feed' ? 'hidden' : 'visible';
+    if(v === 'map' || v === 'explore') ensureMap();
     refresh();
     if(v === 'explore') loadPublic();
+    if(v === 'feed' && !feed.length && !feedLoading){ if(!lastFix) feedSort = 'new'; loadFeed(true); }
     else if(v === 'map' && was === 'explore') fitPins();
   }
-  const base = () => view === 'explore' ? pub.filter(p => !hiddenPub.has(p.id)) : spots;
+  const base = () => view === 'explore' ? pub.filter(p => !hiddenPub.has(p.id)) : view === 'feed' ? feed.filter(p => !hiddenPub.has(p.id)) : spots;
   const passes = s => { const f = flatTags(s.tags); for(const k of filters) if(k === 'fav' ? !s.fav : !f.includes(k)) return false; return true; };
   const visible = () => base().filter(passes);
   const imgFor = s => s.pub ? (signed.get(s.thumb_path) || '') : urlFor(s);
@@ -597,6 +627,7 @@
     const order = (used.has('fav') ? ['fav'] : []).concat(Object.keys(OPT).filter(k => used.has(k)));
     $('filters').innerHTML = order.map(k => chipHTML(k, filters.has(k))).join('');
     const vis = b.filter(passes);
+    if(view === 'feed'){ $('countLabel').textContent = `${vis.length} posts`; renderFeed(vis); renderEmpty(); updateCounts(); return; }
     if(view === 'explore') $('countLabel').textContent = pubLoading && !pub.length ? 'Loading' : `${vis.length} public`;
     else $('countLabel').textContent = filters.size ? `${vis.length} of ${b.length}` : `${b.length} spot${b.length === 1 ? '' : 's'}`;
     if(view !== 'explore') $('album').innerHTML = vis.map(s => `<button data-id="${s.id}"><img src="${urlFor(s)}" alt="" loading="lazy">${s.fav ? `<svg class="heart" viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.6 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg>` : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('');
@@ -604,6 +635,11 @@
   }
   function renderEmpty(){
     const e = $('empty');
+    if(view === 'feed'){
+      const msg = feedErr || (feedLoading || visible().length ? '' : feed.length ? 'No posts match those tags. Tap a highlighted tag above to remove it.' : 'Nothing posted yet. Open one of your spots and tap Share to public map to post the first one.');
+      e.textContent = msg; e.style.display = msg ? 'block' : 'none'; if(msg) e.style.top = '64px'; return;
+    }
+    e.style.top = '';
     if(view === 'explore'){
       const msg = pubError || (pubLoading ? '' : !visible().length ? (pub.length ? 'No public spots match those tags. Tap a highlighted tag above to remove it.' : 'No public spots in this area yet. Share one of yours from its spot page and it shows up here for everyone.') : '');
       e.textContent = msg; e.style.display = msg ? 'block' : 'none'; return;
@@ -633,7 +669,8 @@
     map.on('load', () => { mapReady = true; drawPins(visible()); if(view === 'explore') loadPublic(); else fitPins(); });
     map.on('zoomend', autoOpen);
     map.on('moveend', () => { if(view === 'explore' && !adjusting){ clearTimeout(pubTimer); pubTimer = setTimeout(loadPublic, 350); } });
-    map.on('move', () => { if(adjusting) adjustInfo(); });
+    map.on('move', () => { layoutPins(); if(adjusting) adjustInfo(); });
+    map.on('resize', layoutPins);
     map.on('error', e => {
       const st = e && e.error && e.error.status;
       if(st === 401 || st === 403){
@@ -656,17 +693,70 @@
     visible().forEach(s => { const p = map.project([s.lng, s.lat]); const d = Math.hypot(p.x - c.x, p.y - c.y); if(d < bd){ bd = d; best = s; } });
     if(best && bd < 110 && best.id !== lastAuto){ lastAuto = best.id; showSheet(best, true); }
   }
+  /* Photo pins: overlapping photos gather into a layered collage, then slide
+     apart toward their real spots as you zoom in */
+  let pinMap = new Map();
+  const GROUP_R = 64;
+  const SLOTS = [[0, 0, 0], [40, -30, 7], [-40, 26, -6], [36, 34, 4]];
   function drawPins(list){
     if(!map) return;
-    markers.forEach(m => m.remove()); markers = [];
+    markers.forEach(m => m.remove()); markers = []; pinMap = new Map();
+    if(view === 'feed') return;
     list.forEach(s => {
       if(adjusting && adjusting.s === s) return;
-      const el = document.createElement('button'), img = imgFor(s);
-      el.className = 'pin' + (s.fav ? ' fav' : '') + (s.mine ? ' mine' : ''); el.setAttribute('aria-label', s.note || 'Saved spot');
-      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') + (img ? `<div class="face"><img src="${img}" alt=""></div>` : '<div class="face blank"></div>');
-      el.onclick = ev => { ev.stopPropagation(); showSheet(s); };
-      markers.push(new mapboxgl.Marker({ element:el }).setLngLat([s.lng, s.lat]).addTo(map));
+      const el = document.createElement('div'), img = imgFor(s), it = { s, el };
+      el.className = 'pin' + (s.fav ? ' fav' : '') + (s.mine ? ' mine' : ''); el.dataset.size = 'single';
+      el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') +
+        `<button class="face${img ? '' : ' blank'}" aria-label="${esc(s.note || 'Saved spot')}">${img ? `<img src="${img}" alt="">` : ''}</button><span class="badge"></span>`;
+      el.onclick = ev => { ev.stopPropagation(); tapPin(it); };
+      it.m = new mapboxgl.Marker({ element:el }).setLngLat([s.lng, s.lat]).addTo(map);
+      markers.push(it.m); pinMap.set(s.id, it);
     });
+    layoutPins();
+  }
+  function tapPin(it){
+    const g = it.g;
+    if(g && g.length > 1 && map.getZoom() < 19){
+      const b = new mapboxgl.LngLatBounds(); g.forEach(x => b.extend([x.s.lng, x.s.lat]));
+      const sw = map.project(b.getSouthWest()), ne = map.project(b.getNorthEast());
+      if(Math.hypot(ne.x - sw.x, ne.y - sw.y) < 8) map.easeTo({ center:b.getCenter(), zoom:Math.min(19.5, map.getZoom() + 2.5) });
+      else map.fitBounds(b, { padding:110, maxZoom:19.5 });
+      return;
+    }
+    showSheet(it.s);
+  }
+  function layoutPins(){
+    if(!map || !pinMap.size) return;
+    const c = map.getContainer(), W = c.clientWidth, H = c.clientHeight, items = [...pinMap.values()];
+    items.forEach(it => { it.p = map.project([it.s.lng, it.s.lat]); it.g = null; it.on = it.p.x > -120 && it.p.x < W + 120 && it.p.y > -120 && it.p.y < H + 120; });
+    const live = items.filter(i => i.on).sort((a, b) => (b.s.fav ? 1 : 0) - (a.s.fav ? 1 : 0) || b.s.ts - a.s.ts);
+    live.forEach(it => {
+      if(it.g) return;
+      const g = [it]; it.g = g;
+      live.forEach(o => { if(!o.g && Math.hypot(o.p.x - it.p.x, o.p.y - it.p.y) < GROUP_R){ o.g = g; g.push(o); } });
+    });
+    items.forEach(it => {
+      const g = it.g;
+      if(!g || g.length === 1) return place(it, null, 'single', 0, 1, '');
+      if(it !== g[0]) return;
+      const cx = g.reduce((a, x) => a + x.p.x, 0) / g.length, cy = g.reduce((a, x) => a + x.p.y, 0) / g.length;
+      let far = 0; g.forEach(a => g.forEach(b => { far = Math.max(far, Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y)); }));
+      const t = Math.min(1, far / GROUP_R), e = t * t * (3 - 2 * t);
+      g.forEach((x, k) => {
+        const sl = SLOTS[Math.min(k, SLOTS.length - 1)], tuck = k >= SLOTS.length;
+        const ox = tuck ? 0 : sl[0], oy = tuck ? 0 : sl[1];
+        const px = cx + ox + (x.p.x - cx - ox) * e, py = cy + oy + (x.p.y - cy - oy) * e;
+        place(x, { x:px, y:py }, k === 0 ? 'main' : tuck ? 'tuck' : 'sub', (tuck ? 0 : sl[2]) * (1 - e), 20 - Math.min(k, 15), k === 0 ? String(g.length) : '', tuck ? e : 1);
+      });
+    });
+  }
+  function place(it, pt, size, rot, z, badge, op = 1){
+    it.m.setLngLat(pt ? map.unproject([pt.x, pt.y]) : [it.s.lng, it.s.lat]);
+    if(it.el.dataset.size !== size) it.el.dataset.size = size;
+    it.el.style.zIndex = z;
+    it.el.style.setProperty('--rot', rot.toFixed(1) + 'deg');
+    const f = it.el.querySelector('.face'); if(f) f.style.opacity = op;
+    const bd = it.el.querySelector('.badge'); if(bd.textContent !== badge) bd.textContent = badge;
   }
   function fitPins(){
     const list = visible(); if(!map || !list.length || view === 'explore') return;
@@ -683,7 +773,7 @@
     renderTitle(s); closeRename(false);
     const d = new Date(s.ts), day = d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}), facing = s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '';
     if(s.pub){
-      $('sheetImg').src = imgFor(s);
+      $('sheetImg').src = signed.get(s.photo_path) || imgFor(s);
       fullUrl(s.photo_path).then(u => { if(u && openSpot === s) $('sheetImg').src = u; });
       $('sheetMeta').innerHTML = (s.username ? `<span>by <strong>@${esc(s.username)}</strong></span>` : '') + `<span>${day}</span>` + facing;
     }else{
@@ -853,16 +943,79 @@
       pubError = /relation|column|does not exist|schema cache/i.test(error.message || '') ? "The public map isn't switched on in Supabase yet. Run the setup SQL, then come back to Explore." : "Couldn't load public spots. Check your connection and try again.";
       return refresh();
     }
-    const ids = [...new Set(data.map(r => r.user_id))].filter(id => !names.has(id));
-    if(ids.length){ const r = await sb.from('profiles').select('id,username').in('id', ids); (r.data || []).forEach(p => names.set(p.id, p.username)); }
-    const need = data.map(r => r.thumb_path).filter(p => p && !signed.has(p));
-    if(need.length){ const r = await sb.storage.from('spot-photos').createSignedUrls(need, 21600); (r.data || []).forEach(x => x.signedUrl && signed.set(x.path, x.signedUrl)); }
+    await enrich(data, 'thumb_path');
     if(seq !== pubSeq) return;
-    const me = session && session.user.id;
-    pub = data.map(r => ({ pub:true, id:r.id, user_id:r.user_id, mine:r.user_id === me, hidden:r.hidden, note:r.note || '', tags:r.tags || {},
-      lat:r.lat, lng:r.lng, heading:r.heading, ts:Date.parse(r.created_at), photo_path:r.photo_path, thumb_path:r.thumb_path, username:names.get(r.user_id) || '' }));
+    pub = data.map(toPub);
     pubLoading = false; refresh();
   }
+  async function enrich(rows, which){
+    const ids = [...new Set(rows.map(r => r.user_id))].filter(id => !names.has(id));
+    if(ids.length){ const r = await sb.from('profiles').select('id,username').in('id', ids); (r.data || []).forEach(p => names.set(p.id, p.username)); }
+    const need = rows.map(r => r[which]).filter(p => p && !signed.has(p));
+    if(need.length){ const r = await sb.storage.from('spot-photos').createSignedUrls(need, 21600); (r.data || []).forEach(x => x.signedUrl && signed.set(x.path, x.signedUrl)); }
+  }
+  const toPub = r => ({ pub:true, id:r.id, user_id:r.user_id, mine:!!session && r.user_id === session.user.id, hidden:r.hidden, note:r.note || '', tags:r.tags || {},
+    lat:r.lat, lng:r.lng, heading:r.heading, ts:Date.parse(r.created_at), photo_path:r.photo_path, thumb_path:r.thumb_path, username:names.get(r.user_id) || '' });
+
+  /* Feed: shared spots as posts, nearest or newest first */
+  const PAGE = 15;
+  async function loadFeed(reset){
+    if(!sb){ feedErr = 'The feed is offline right now. Check your connection.'; return refresh(); }
+    if(reset){ feed = []; feedDone = false; $('feed').scrollTop = 0; }
+    if(feedDone || feedLoading) return;
+    if(feedSort === 'near' && !lastFix){ feedSort = 'new'; toast('Turn on location to sort by nearby'); }
+    const seq = ++feedSeq; feedLoading = true; feedErr = ''; renderSort(); renderEmpty();
+    const off = feed.length;
+    const r = feedSort === 'near'
+      ? await sb.rpc('feed_nearby', { p_lat:lastFix.lat, p_lng:lastFix.lng, p_limit:PAGE, p_offset:off })
+      : await sb.from('spots').select('id,user_id,note,tags,lat,lng,heading,created_at,photo_path,thumb_path,hidden')
+          .eq('is_public', true).order('created_at', { ascending:false }).range(off, off + PAGE - 1);
+    if(seq !== feedSeq) return;
+    if(r.error){ feedLoading = false; feedErr = "Couldn't load the feed. Check your connection and try again."; return refresh(); }
+    await enrich(r.data, 'photo_path');
+    if(seq !== feedSeq) return;
+    const seen = new Set(feed.map(f => f.id));
+    feed = feed.concat(r.data.map(toPub).filter(p => !seen.has(p.id)));
+    feedDone = r.data.length < PAGE; feedLoading = false;
+    refresh();
+  }
+  function renderSort(){
+    $('fsort').innerHTML = `<button class="chip" data-s="near" aria-pressed="${feedSort === 'near'}">Near me</button><button class="chip" data-s="new" aria-pressed="${feedSort === 'new'}">Newest</button>`;
+  }
+  $('fsort').addEventListener('click', e => {
+    const b = e.target.closest('[data-s]'); if(!b || b.dataset.s === feedSort) return;
+    feedSort = b.dataset.s; loadFeed(true);
+  });
+  const ago = ts => {
+    const m = Math.round((Date.now() - ts) / 60000);
+    if(m < 1) return 'now'; if(m < 60) return m + 'm'; if(m < 1440) return Math.round(m / 60) + 'h'; if(m < 10080) return Math.round(m / 1440) + 'd';
+    return new Date(ts).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  };
+  const away = s => {
+    if(!lastFix) return '';
+    const mi = dist([lastFix.lng, lastFix.lat], [s.lng, s.lat]) / 1609.34;
+    return mi < 0.1 ? `${Math.round(mi * 5280)} ft away` : `${mi < 10 ? mi.toFixed(1) : Math.round(mi)} mi away`;
+  };
+  function renderFeed(list){
+    renderSort();
+    $('feedList').innerHTML = list.map(s => {
+      const tags = flatTags(s.tags).slice(0, 5).map(k => chipHTML(k, null, 'span')).join('');
+      const meta = [away(s), s.heading != null ? `shot facing ${compass(s.heading)}` : '', s.mine && s.hidden ? 'hidden while reviewed' : ''].filter(Boolean).join(' · ');
+      return `<article class="card" data-id="${s.id}">
+        <div class="chead"><span class="cuser">${s.username ? '@' + esc(s.username) : 'someone'}${s.mine ? ' (you)' : ''}</span><span class="ctime">${ago(s.ts)}</span></div>
+        <img src="${signed.get(s.photo_path) || ''}" alt="" loading="lazy">
+        <div class="cbody"><h4>${esc(s.note || 'Untitled spot')}</h4>${meta ? `<div class="cmeta">${meta}</div>` : ''}${tags ? `<div class="chips">${tags}</div>` : ''}</div>
+      </article>`;
+    }).join('') + (feedLoading ? '<div class="phint" style="text-align:center;margin:14px 0">Loading</div>' : !feedDone && list.length ? '<button class="fmore" id="feedMore">Load more</button>' : '');
+  }
+  $('feedList').addEventListener('click', e => {
+    if(e.target.closest('#feedMore')) return loadFeed(false);
+    const c = e.target.closest('.card'); if(!c) return;
+    showSheet(feed.find(f => f.id === c.dataset.id));
+  });
+  $('feed').addEventListener('scroll', () => {
+    const f = $('feed'); if(f.scrollTop + f.clientHeight > f.scrollHeight - 600) loadFeed(false);
+  }, { passive:true });
   async function fullUrl(path){
     if(!path || !sb) return '';
     if(signed.has(path)) return signed.get(path);
@@ -905,7 +1058,8 @@
       r = await sb.from('spots').insert({ id, photo_path:photo, thumb_path:thumb, lat:s.lat, lng:s.lng, heading:s.heading ?? null, note:s.note || null, tags:s.tags || {}, is_public:true });
       if(r.error) throw r.error;
       s.cloudId = id; s.cloudPaths = [photo, thumb]; await putSpot(s);
-      closeDlg(); showSheet(s); toast('Shared to the public map');
+      feed = []; feedDone = false;
+      closeDlg(); showSheet(s); toast('Shared to the public map and feed');
     }catch(e){
       bucket.remove([photo, thumb]).catch(() => {});
       b.disabled = false; b.textContent = 'Share';
@@ -926,7 +1080,7 @@
     if(!(await removeCloud(id, paths))) return;
     const local = s.pub ? spots.find(x => x.cloudId === id) : s;
     if(local){ delete local.cloudId; delete local.cloudPaths; await putSpot(local); }
-    pub = pub.filter(p => p.id !== id);
+    pub = pub.filter(p => p.id !== id); feed = feed.filter(p => p.id !== id);
     hideSheet(); refresh(); toast('Removed from the public map');
   }
   async function syncCloud(s){
