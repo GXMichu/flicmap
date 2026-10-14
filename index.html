@@ -136,7 +136,13 @@
   .avatar{width:38px;height:38px;border-radius:50%;background:#1b1b1b;overflow:hidden;display:grid;place-items:center;flex:none;font-weight:800;font-size:15px;color:#ddd}
   .avatar img{width:100%;height:100%;object-fit:cover;display:block}
   .titlerow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 2px 4px}
-  .titlerow h3{margin:0}
+  .titlerow h3{margin:0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  [hidden]{display:none!important}
+  .titlebtn{display:flex;align-items:center;gap:8px;flex:1;min-width:0;text-align:left;padding:6px 0}
+  .titlebtn svg{width:17px;height:17px;flex:none;fill:none;stroke:var(--muted);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .titlebtn.untitled h3{color:var(--muted)}
+  .titleinput{flex:1;min-width:0;font:inherit;font-size:20px;font-weight:700;color:var(--white);background:#1b1b1b;border:1px solid var(--line);border-radius:10px;padding:7px 10px;outline:none}
+  .titleinput:focus{border-color:var(--signal)}
   .fav{width:44px;height:44px;border-radius:50%;background:#1b1b1b;display:grid;place-items:center;flex:none}
   .fav svg{width:22px;height:22px;fill:none;stroke:#ddd;stroke-width:2;transition:transform .15s}
   .fav[aria-pressed="true"] svg{fill:var(--signal);stroke:var(--signal)}
@@ -219,7 +225,8 @@
   <div class="grab"></div>
   <img id="sheetImg" alt="">
   <div class="titlerow">
-    <h3 id="sheetTitle"></h3>
+    <button class="titlebtn" id="titleBtn" aria-label="Rename spot"><h3 id="sheetTitle"></h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></svg></button>
+    <input class="titleinput" id="titleInput" type="text" maxlength="60" placeholder="Name this spot" enterkeyhint="done" autocomplete="off" hidden>
     <button class="fav" id="favBtn" aria-pressed="false" aria-label="Favorite"><svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.4 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.6 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z"/></svg></button>
   </div>
   <div class="meta" id="sheetMeta"></div>
@@ -597,7 +604,7 @@
     $('sheet').classList.toggle('zoomed', !!zoomed);
     $('favBtn').setAttribute('aria-pressed', !!s.fav);
     $('sheetImg').src = urlFor(s);
-    $('sheetTitle').textContent = s.note || 'Untitled spot';
+    renderTitle(s); closeRename(false);
     const d = new Date(s.ts);
     $('sheetMeta').innerHTML = `<span>${d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}, ${d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}</span>` +
       (s.heading != null ? `<span>shot facing <strong>${compass(s.heading)}</strong></span>` : '') + `<span>within ${Math.round(s.acc)}m</span>`;
@@ -606,7 +613,35 @@
     $('sheet').scrollTop = 0;
     $('sheet').classList.add('show'); $('scrim').classList.add('show');
   }
-  function hideSheet(){ $('sheet').classList.remove('show'); $('scrim').classList.remove('show'); openSpot = null; }
+  function renderTitle(s){
+    $('sheetTitle').textContent = s.note || 'Untitled spot';
+    $('titleBtn').classList.toggle('untitled', !s.note);
+  }
+  function openRename(){
+    if(!openSpot) return;
+    const i = $('titleInput');
+    i.value = openSpot.note || '';
+    $('titleBtn').hidden = true; i.hidden = false;
+    i.focus(); i.select();
+  }
+  function closeRename(save){
+    const i = $('titleInput');
+    if(i.hidden) return;
+    i.hidden = true; $('titleBtn').hidden = false;
+    if(!save || !openSpot) return;
+    const v = i.value.trim().slice(0, 60);
+    if(v === (openSpot.note || '')) return;
+    openSpot.note = v;
+    renderTitle(openSpot);
+    putSpot(openSpot).then(() => { refresh(); toast(v ? 'Spot renamed' : 'Name cleared'); });
+  }
+  $('titleBtn').onclick = openRename;
+  $('titleInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); closeRename(true); }
+    if(e.key === 'Escape'){ e.preventDefault(); closeRename(false); }
+  });
+  $('titleInput').addEventListener('blur', () => closeRename(true));
+  function hideSheet(){ closeRename(true); $('sheet').classList.remove('show'); $('scrim').classList.remove('show'); openSpot = null; }
   $('scrim').onclick = hideSheet;
   $('appleBtn').onclick = () => openSpot && (location.href = `https://maps.apple.com/?daddr=${openSpot.lat},${openSpot.lng}`);
   $('googleBtn').onclick = () => openSpot && window.open(`https://www.google.com/maps/dir/?api=1&destination=${openSpot.lat},${openSpot.lng}`, '_blank');
