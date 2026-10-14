@@ -160,6 +160,7 @@
   .chip .hs{width:14px;height:14px;fill:var(--signal)}
   .chip[aria-pressed="true"] .hs{fill:#000}
   .pin.fav .face{border-color:var(--signal)}
+  .morph{position:fixed;z-index:40;object-fit:cover;pointer-events:none;box-shadow:0 12px 30px rgba(0,0,0,.5)}
   .sheet.zoomed img{animation:zoomin .35s cubic-bezier(.2,.8,.2,1)}
   @keyframes zoomin{from{transform:scale(.55);opacity:0;border-radius:50%}to{transform:none;opacity:1}}
   .profile{position:fixed;inset:0;z-index:45;background:#000;display:none;flex-direction:column}
@@ -798,17 +799,45 @@
     });
   }
   /* Zoom all the way into a spot and it opens */
-  const OPEN_ZOOM = 18, REARM_ZOOM = 17;
+  const OPEN_ZOOM = 19.4, REARM_ZOOM = 18.4;
+  let morphing = false;
   let lastAuto = null;
   function autoOpen(){
     if((view !== 'map' && view !== 'explore') || !drawerOpen || adjusting || mineSheet.classList.contains('open')) return;
     const z = map.getZoom();
     if(z < REARM_ZOOM){ lastAuto = null; return; }
-    if(z < OPEN_ZOOM || openSpot) return;
+    if(z < OPEN_ZOOM || openSpot || morphing) return;
     const c = map.project(map.getCenter());
     let best = null, bd = Infinity;
     visible().forEach(s => { const p = map.project([s.lng, s.lat]); const d = Math.hypot(p.x - c.x, p.y - c.y); if(d < bd){ bd = d; best = s; } });
-    if(best && bd < 110 && best.id !== lastAuto){ lastAuto = best.id; showSheet(best, true); }
+    if(best && bd < 110 && best.id !== lastAuto){ lastAuto = best.id; zoomOpen(best); }
+  }
+  // Glide the last bit onto the spot, then grow its photo into the spot page
+  function zoomOpen(s){
+    morphing = true;
+    map.easeTo({ center:[s.lng, s.lat], zoom:Math.max(map.getZoom(), OPEN_ZOOM + 0.5), duration:450, easing:t => 1 - Math.pow(1 - t, 3) });
+    // attach after this frame so the zoom that triggered us doesn't count as the glide ending
+    setTimeout(() => map.once('moveend', () => { morphing = false; morphOpen(s); }), 0);
+  }
+  function morphOpen(s){
+    const it = pinMap.get(s.id), face = it && it.el.querySelector('.face'), img = face && face.querySelector('img');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(!img || reduce) return showSheet(s, !reduce);
+    const from = face.getBoundingClientRect(), sh = $('sheet'), si = $('sheetImg');
+    showSheet(s);
+    sh.style.transition = 'none'; const sTr = sh.style.transform; sh.style.transform = 'none';
+    const to = si.getBoundingClientRect();
+    sh.style.transform = sTr; sh.classList.remove('show'); void sh.offsetHeight; sh.style.transition = ''; sh.classList.add('show');
+    const ghost = document.createElement('img'); ghost.src = img.src; ghost.className = 'morph';
+    Object.assign(ghost.style, { left:from.left + 'px', top:from.top + 'px', width:from.width + 'px', height:from.height + 'px' });
+    document.body.appendChild(ghost);
+    si.style.visibility = 'hidden'; face.style.visibility = 'hidden';
+    const anim = ghost.animate([
+      { left:from.left + 'px', top:from.top + 'px', width:from.width + 'px', height:from.height + 'px', borderRadius:'14px' },
+      { left:to.left + 'px', top:to.top + 'px', width:to.width + 'px', height:to.height + 'px', borderRadius:'14px' }
+    ], { duration:420, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
+    const done = () => { si.style.visibility = ''; face.style.visibility = ''; ghost.remove(); };
+    anim.onfinish = done; anim.oncancel = done;
   }
   /* Photo pins: overlapping photos gather into a layered collage, then slide
      apart toward their real spots as you zoom in */
@@ -836,11 +865,11 @@
     if(g && g.length > 1 && (it.b || 0) < 0.6 && map.getZoom() < 19){
       const b = new mapboxgl.LngLatBounds(); g.forEach(x => b.extend([x.s.lng, x.s.lat]));
       const sw = map.project(b.getSouthWest()), ne = map.project(b.getNorthEast());
-      if(Math.hypot(ne.x - sw.x, ne.y - sw.y) < 8) map.easeTo({ center:b.getCenter(), zoom:Math.min(19.5, map.getZoom() + 2.5) });
-      else map.fitBounds(b, { padding:110, maxZoom:19.5 });
+      if(Math.hypot(ne.x - sw.x, ne.y - sw.y) < 8) map.easeTo({ center:b.getCenter(), zoom:Math.min(19, map.getZoom() + 2.5) });
+      else map.fitBounds(b, { padding:110, maxZoom:19 });
       return;
     }
-    showSheet(it.s);
+    morphOpen(it.s);
   }
   function layoutPins(){
     if(!map || !pinMap.size) return;
