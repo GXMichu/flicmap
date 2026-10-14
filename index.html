@@ -34,6 +34,14 @@
   .gps i{width:8px;height:8px;border-radius:50%;background:#777;display:block}
   .gps.ok i{background:var(--signal);box-shadow:0 0 0 3px rgba(255,214,10,.25)}
   .gps.weak i{background:#ff9f0a}
+  .gps{color:var(--white);cursor:pointer}
+  .gps .ginfo{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;opacity:.55;margin-left:-1px}
+  .gtip{position:fixed;top:calc(var(--safe-t) + 58px);right:14px;max-width:272px;z-index:7;padding:12px 14px;border-radius:14px;
+    background:rgba(12,12,12,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 26px rgba(0,0,0,.45);
+    font-size:13px;line-height:1.45;color:#ddd;opacity:0;transform:translateY(-6px);transition:opacity .18s,transform .18s;pointer-events:none}
+  .gtip b{color:var(--white)}
+  .gtip::before{content:'';position:absolute;top:-6px;right:34px;width:12px;height:12px;background:rgba(12,12,12,.86);transform:rotate(45deg);border-radius:2px}
+  .gtip.show{opacity:1;transform:none;pointer-events:auto}
   .bottombar{position:fixed;left:0;right:0;bottom:0;z-index:5;padding:8px 30px calc(var(--safe-b) + 22px);
     display:grid;grid-template-columns:1fr auto 1fr;grid-template-areas:"hint hint hint" "l shutter r";row-gap:18px;align-items:center;
     background:linear-gradient(transparent,rgba(0,0,0,.6))}
@@ -332,7 +340,7 @@
 
 <header class="topbar">
   <div class="wordmark">flicmap</div>
-  <div class="gps" id="gps"><i></i><span id="gpsText">Finding you</span></div>
+  <button class="gps" id="gps" aria-describedby="gpsTip"><i></i><span id="gpsText">Finding you</span><svg class="ginfo" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg></button>
 </header>
 
 <footer class="bottombar">
@@ -438,6 +446,7 @@
 </section>
 
 <div class="toast" id="toast"></div>
+<div class="gtip" id="gpsTip" role="tooltip"></div>
 
 <script>
 (() => {
@@ -568,10 +577,28 @@
     if(!navigator.geolocation) return setGPS('none','No location');
     navigator.geolocation.watchPosition(p => {
       lastFix = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, t:Date.now() };
-      p.coords.accuracy <= 30 ? setGPS('ok', `Located within ${Math.round(p.coords.accuracy)}m`) : setGPS('weak', `Rough location, ${Math.round(p.coords.accuracy)}m`);
+      p.coords.accuracy <= 30 ? setGPS('ok', `Located within ${Math.round(p.coords.accuracy)}m`, p.coords.accuracy) : setGPS('weak', `Rough location, ${Math.round(p.coords.accuracy)}m`, p.coords.accuracy);
     }, () => setGPS('none','Location off'), { enableHighAccuracy:true, maximumAge:2000, timeout:20000 });
   }
-  function setGPS(s, t){ $('gps').className = 'gps ' + s; $('gpsText').textContent = t; }
+  let gpsState = 'none', gpsAcc = null;
+  function setGPS(s, t, acc){ gpsState = s; gpsAcc = acc ?? null; $('gps').className = 'gps ' + s; $('gpsText').textContent = t; if($('gpsTip').classList.contains('show')) fillGpsTip(); }
+  function fillGpsTip(){
+    const m = gpsAcc != null ? Math.round(gpsAcc) : null, ft = m != null ? Math.round(m * 3.281) : null;
+    $('gpsTip').innerHTML = gpsState === 'ok'
+      ? `<b>Good to snap.</b> Your phone knows where you are to within ${m}m (about ${ft} ft). That's where the spot gets pinned, so use <b>Fix pin</b> later to move it onto the wall itself.`
+      : gpsState === 'weak'
+      ? `<b>Location is rough.</b> It could be off by ${m}m (about ${ft} ft). Give it a few seconds or step out from under buildings and trees.`
+      : `<b>No location yet.</b> FlicMap needs it to remember where a spot is. If this stays gray, allow location for this site in your browser settings.`;
+  }
+  let gpsTipT = null;
+  function toggleGpsTip(show){
+    const t = $('gpsTip'); show = show ?? !t.classList.contains('show');
+    clearTimeout(gpsTipT);
+    if(show){ fillGpsTip(); t.classList.add('show'); gpsTipT = setTimeout(() => t.classList.remove('show'), 6000); }
+    else t.classList.remove('show');
+  }
+  $('gps').onclick = e => { e.stopPropagation(); toggleGpsTip(); };
+  document.addEventListener('click', e => { if(!e.target.closest('#gps,#gpsTip')) toggleGpsTip(false); });
 
   /* Compass */
   function onOrient(e){
@@ -696,7 +723,7 @@
     });
   }
   const cameraIdle = () => !drawerOpen && !$('review').classList.contains('show');
-  dragger(e => cameraIdle() && !e.target.closest('#shutter,#flipBtn,.notice button'), false);
+  dragger(e => cameraIdle() && !e.target.closest('#shutter,#flipBtn,#gps,#gpsTip,.notice button'), false);
   dragger(e => drawerOpen && !!e.target.closest('#dhead') && !e.target.closest('button'), true);
   addEventListener('wheel', e => { if(cameraIdle() && e.deltaY > 25) openDrawer(); }, { passive:true });
   $('pullBtn').onclick = openDrawer;
