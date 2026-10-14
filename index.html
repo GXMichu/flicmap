@@ -113,13 +113,15 @@
   .pin{width:0;height:0;cursor:pointer}
   .pin .cone{position:absolute;left:50%;top:50%;width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;
     border-bottom:44px solid rgba(255,214,10,.45);transform-origin:50% 100%;margin-left:-16px;margin-top:-44px}
-  .pin .face{position:absolute;left:0;top:0;width:52px;height:52px;padding:0;border-radius:14px;border:2px solid var(--white);overflow:hidden;background:#333;
-    box-shadow:0 6px 16px rgba(0,0,0,.55);transform:translate(-50%,-50%) rotate(var(--rot,0deg));
+  .pin .face{position:absolute;left:0;top:0;width:64px;height:48px;padding:0;border-radius:13px;border:2px solid var(--white);overflow:hidden;background:#333;
+    box-shadow:0 6px 16px rgba(0,0,0,.55);transform:translate(-50%,-50%) rotate(var(--rot,0deg)) scale(var(--grow,1));
     transition:width .25s ease,height .25s ease,border-radius .25s ease,transform .25s ease,opacity .2s}
-  .pin[data-size="main"] .face{width:68px;height:68px;border-radius:18px}
-  .pin[data-size="sub"] .face,.pin[data-size="tuck"] .face{width:44px;height:44px;border-radius:12px}
+  .pin[data-size="main"] .face{width:84px;height:63px;border-radius:16px}
+  .pin[data-size="sub"] .face,.pin[data-size="tuck"] .face{width:56px;height:42px;border-radius:11px}
   .pin:not([data-size="single"]) .cone{display:none}
-  .pin .badge{position:absolute;left:0;top:0;transform:translate(20px,-48px);padding:3px 8px;border-radius:99px;background:var(--white);color:#000;
+  .pin.growing .face{transition:width .25s ease,height .25s ease,border-radius .25s ease,opacity .2s;box-shadow:0 14px 34px rgba(0,0,0,.6)}
+  .pin.growing .cone{opacity:0}
+  .pin .badge{position:absolute;left:0;top:0;transform:translate(30px,-44px);padding:3px 8px;border-radius:99px;background:var(--white);color:#000;
     font-size:12px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.5);white-space:nowrap;pointer-events:none}
   .pin .badge:empty{display:none}
   .pin .face img{width:100%;height:100%;object-fit:cover;display:block}
@@ -142,6 +144,8 @@
     padding:11px 18px;border-radius:99px;background:var(--white);color:#000;font-weight:700;font-size:14px;transition:.25s;pointer-events:none}
   .toast.show{opacity:1;transform:translate(-50%,0)}
   #cam.mirror{transform:scaleX(-1)}
+  #cam{transition:opacity .15s,filter .15s}
+  #cam.flipping{opacity:.25;filter:blur(8px)}
   .avatar{width:38px;height:38px;border-radius:50%;background:#1b1b1b;overflow:hidden;display:grid;place-items:center;flex:none;font-weight:800;font-size:15px;color:#ddd}
   .avatar img{width:100%;height:100%;object-fit:cover;display:block}
   .titlerow{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 2px 4px}
@@ -539,7 +543,25 @@
   }
   function stopCamera(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } }
   $('camRetry').onclick = startCamera;
-  $('flipBtn').onclick = () => { facing = facing === 'environment' ? 'user' : 'environment'; startCamera(); };
+  function flipCamera(){
+    facing = facing === 'environment' ? 'user' : 'environment';
+    video.classList.add('flipping'); startCamera().then(() => setTimeout(() => video.classList.remove('flipping'), 120));
+  }
+  $('flipBtn').onclick = flipCamera;
+  // Double tap anywhere on the camera to flip between back and selfie, Snapchat style
+  (() => {
+    let last = 0, lx = 0, ly = 0, sx = 0, sy = 0;
+    document.addEventListener('touchstart', e => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }, { passive:true });
+    document.addEventListener('touchend', e => {
+      if(drawerOpen || $('review').classList.contains('show') || $('profile').classList.contains('show')) return;
+      if(e.target.closest('button,.notice')) return;
+      const t = e.changedTouches[0], now = Date.now();
+      if(Math.hypot(t.clientX - sx, t.clientY - sy) > 12) return;
+      if(now - last < 300 && Math.hypot(t.clientX - lx, t.clientY - ly) < 50){ last = 0; e.preventDefault(); flipCamera(); return; }
+      last = now; lx = t.clientX; ly = t.clientY;
+    }, { passive:false });
+    video.addEventListener('dblclick', e => { if(!drawerOpen) flipCamera(); });
+  })();
 
   /* Location */
   function startGPS(){
@@ -813,37 +835,42 @@
     if(best && bd < 110 && best.id !== lastAuto){ lastAuto = best.id; zoomOpen(best); }
   }
   // Glide the last bit onto the spot, then grow its photo into the spot page
+  // You're already zooming into the photo; keep going until it fills the spot page
   function zoomOpen(s){
     morphing = true;
-    map.easeTo({ center:[s.lng, s.lat], zoom:Math.max(map.getZoom(), OPEN_ZOOM + 0.5), duration:450, easing:t => 1 - Math.pow(1 - t, 3) });
-    // attach after this frame so the zoom that triggered us doesn't count as the glide ending
-    setTimeout(() => map.once('moveend', () => { morphing = false; morphOpen(s); }), 0);
+    morphOpen(s, () => { morphing = false; });
+    map.easeTo({ center:[s.lng, s.lat], zoom:Math.max(map.getZoom(), OPEN_ZOOM + 0.4), duration:420, easing:t => 1 - Math.pow(1 - t, 3) });
   }
-  function morphOpen(s){
+  function morphOpen(s, after){
     const it = pinMap.get(s.id), face = it && it.el.querySelector('.face'), img = face && face.querySelector('img');
     const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if(!img || reduce) return showSheet(s, !reduce);
-    const from = face.getBoundingClientRect(), sh = $('sheet'), si = $('sheetImg');
-    showSheet(s);
-    sh.style.transition = 'none'; const sTr = sh.style.transform; sh.style.transform = 'none';
+    if(!img || reduce){ showSheet(s, !reduce); if(after) after(); return; }
+    const from = face.getBoundingClientRect(), sh = $('sheet'), si = $('sheetImg'), scrim = $('scrim');
+    // Put the page in place without sliding; it fades in behind the growing photo
+    sh.style.transition = 'none'; showSheet(s);
     const to = si.getBoundingClientRect();
-    sh.style.transform = sTr; sh.classList.remove('show'); void sh.offsetHeight; sh.style.transition = ''; sh.classList.add('show');
     const ghost = document.createElement('img'); ghost.src = img.src; ghost.className = 'morph';
-    Object.assign(ghost.style, { left:from.left + 'px', top:from.top + 'px', width:from.width + 'px', height:from.height + 'px' });
     document.body.appendChild(ghost);
     si.style.visibility = 'hidden'; face.style.visibility = 'hidden';
+    const ease = 'cubic-bezier(.25,.8,.25,1)';
+    const fadeIn = [{ opacity:0 }, { opacity:1 }];
+    const pageAnim = sh.animate(fadeIn, { duration:300, delay:140, easing:'ease-out', fill:'backwards' });
+    scrim.animate(fadeIn, { duration:380, easing:'ease-out' });
     const anim = ghost.animate([
-      { left:from.left + 'px', top:from.top + 'px', width:from.width + 'px', height:from.height + 'px', borderRadius:'14px' },
+      { left:from.left + 'px', top:from.top + 'px', width:from.width + 'px', height:from.height + 'px', borderRadius:'16px' },
       { left:to.left + 'px', top:to.top + 'px', width:to.width + 'px', height:to.height + 'px', borderRadius:'14px' }
-    ], { duration:420, easing:'cubic-bezier(.2,.8,.2,1)', fill:'forwards' });
-    const done = () => { si.style.visibility = ''; face.style.visibility = ''; ghost.remove(); };
+    ], { duration:460, easing:ease, fill:'forwards' });
+    const done = () => {
+      si.style.visibility = ''; face.style.visibility = ''; ghost.remove();
+      sh.style.transition = ''; pageAnim.cancel(); if(after) after();
+    };
     anim.onfinish = done; anim.oncancel = done;
   }
   /* Photo pins: overlapping photos gather into a layered collage, then slide
      apart toward their real spots as you zoom in */
   let pinMap = new Map();
-  const GROUP_R = 64;
-  const SLOTS = [[0, 0, 0], [40, -30, 7], [-40, 26, -6], [36, 34, 4]];
+  const GROUP_R = 72;
+  const SLOTS = [[0, 0, 0], [50, -28, 7], [-50, 24, -6], [44, 30, 4]];
   function drawPins(list){
     if(!map) return;
     markers.forEach(m => m.remove()); markers = []; pinMap = new Map();
@@ -872,6 +899,9 @@
     morphOpen(it.s);
   }
   function layoutPins(){
+    layoutCore(); if(map && pinMap.size) growTarget();
+  }
+  function layoutCore(){
     if(!map || !pinMap.size) return;
     const c = map.getContainer(), W = c.clientWidth, H = c.clientHeight, items = [...pinMap.values()];
     items.forEach(it => { it.p = map.project([it.s.lng, it.s.lat]); it.g = null; it.on = it.p.x > -120 && it.p.x < W + 120 && it.p.y > -120 && it.p.y < H + 120; });
@@ -897,7 +927,7 @@
         return { x:cx + ox + (x.p.x - cx - ox) * bl, y:cy + oy + (x.p.y - cy - oy) * bl };
       });
       // Push overlapping photos apart; photos from the exact same spot fan out evenly
-      const D = 60 * bl;
+      const D = 70 * bl;
       for(let it = 0; it < 14 && D > 1; it++){
         let moved = false;
         for(let i = 0; i < n; i++) for(let j = i + 1; j < n; j++){
@@ -915,6 +945,27 @@
           20 - Math.min(k, 15), !apart && k === 0 ? String(n) : '', tuck ? Math.min(1, bl * 2) : 1);
       });
     });
+  }
+  // As you zoom toward a single photo near the middle, it swells so the zoom feels like it's into the photo
+  let growing = null;
+  function growTarget(){
+    let pick = null, g = 1;
+    const z = map.getZoom();
+    if((view === 'map' || view === 'explore') && !adjusting && !openSpot && !morphing && z > REARM_ZOOM - 0.6){
+      const c = map.project(map.getCenter()); let bd = 140;
+      pinMap.forEach(it => {
+        if(!it.on || it.el.dataset.size !== 'single') return;
+        const r = it.el.getBoundingClientRect(), mr = map.getContainer().getBoundingClientRect();
+        const d = Math.hypot(r.left - mr.left - c.x, r.top - mr.top - c.y);
+        if(d < bd){ bd = d; pick = it; }
+      });
+      const t = Math.max(0, Math.min(1, (z - (REARM_ZOOM - 0.6)) / (OPEN_ZOOM - REARM_ZOOM + 0.6)));
+      g = 1 + 2.2 * t * t;
+      if(pick && z >= OPEN_ZOOM && pick.s.id === lastAuto) pick = null; // already opened this one; don't leave it huge
+    }
+    if(growing && growing !== pick){ growing.el.classList.remove('growing'); growing.el.style.setProperty('--grow', 1); }
+    growing = pick;
+    if(pick){ pick.el.classList.add('growing'); pick.el.style.setProperty('--grow', g.toFixed(3)); pick.el.style.zIndex = 60; }
   }
   function place(it, pt, size, rot, z, badge, op = 1){
     it.m.setLngLat(pt ? map.unproject([pt.x, pt.y]) : [it.s.lng, it.s.lat]);
