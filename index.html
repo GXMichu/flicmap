@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="01">
+<meta name="flicmap-version" content="02">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -605,7 +605,7 @@
   function fillGpsTip(){
     const m = gpsAcc != null ? Math.round(gpsAcc) : null, ft = m != null ? Math.round(m * 3.281) : null;
     $('gpsTip').innerHTML = gpsState === 'ok'
-      ? `<b>Good to snap.</b> Your phone knows where you are to within ${m}m (about ${ft} ft). That's where the spot gets pinned, so use <b>Fix pin</b> later to move it onto the wall itself.`
+      ? `<b>Good to snap.</b> Your phone knows where you are to within ${m}m (about ${ft} ft). The spot gets pinned where you're standing. If that's not quite where it belongs on the map, use <b>Fix pin</b> later to move it.`
       : gpsState === 'weak'
       ? `<b>Location is rough.</b> It could be off by ${m}m (about ${ft} ft). Give it a few seconds or step out from under buildings and trees.`
       : `<b>No location yet.</b> FlicMap needs it to remember where a spot is. If this stays gray, allow location for this site in your browser settings.`;
