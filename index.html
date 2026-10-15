@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="07">
+<meta name="flicmap-version" content="08">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -133,6 +133,9 @@
   .pin:not([data-size="single"]) .cone{display:none}
   .pin.growing .face{transition:width .25s ease,height .25s ease,border-radius .25s ease,opacity .2s;box-shadow:0 14px 34px rgba(0,0,0,.6)}
   .pin.growing .cone{opacity:0}
+  .pin .face,.pin .cone{opacity:calc(var(--tk,1) * var(--pinop,1))}
+  .pin .badge{opacity:max(.55,var(--pinop,1))}
+  .pin.growing .face{--pinop:1}
   .pin .badge{position:absolute;left:0;top:0;transform:translate(20px,-48px);padding:3px 8px;border-radius:99px;background:var(--white);color:#000;
     font-size:12px;font-weight:800;box-shadow:0 3px 8px rgba(0,0,0,.5);white-space:nowrap;pointer-events:none}
   .pin .badge:empty{display:none}
@@ -296,8 +299,6 @@
   .cmeta{font-size:13px;color:var(--muted);margin-bottom:8px}
   .card .chips .chip{padding:5px 9px;font-size:12px}
   .fmore{display:block;margin:4px auto 20px;padding:12px 20px;border-radius:99px;background:#1b1b1b;font-weight:700;font-size:14px}
-  #map .mapboxgl-canvas{filter:grayscale(1) contrast(1.08)}
-  .drawer.adjusting #map .mapboxgl-canvas{filter:none}
   .pin.mine .face{border-color:var(--signal)}
   .pin .face.blank{background:#2a2a2a}
   .titlebtn.ro{pointer-events:none}
@@ -573,7 +574,9 @@
   const FX = {
     globe: true,       // zoom all the way out into a 3D globe
     tvGlass: true,     // curved TV-screen edges and corners over the map
-    slideOver: true    // Feed/Profile slide over the map while it eases back underneath
+    slideOver: true,   // Feed/Profile slide over the map while it eases back underneath
+    heat: true,        // warm glow where spots cluster
+    fadePins: true     // photos turn see-through as you zoom out
   };
 
   // Supabase publishable key is meant to be public; the database rules decide what anyone can do.
@@ -1145,6 +1148,50 @@
   });
 
   let map = null, markers = [], mapReady = false;
+  /* Black and white map, done in the style so the heat glow can keep its color */
+  const cvs = document.createElement('canvas').getContext('2d');
+  function toGray(c){
+    cvs.fillStyle = '#010203'; cvs.fillStyle = c;
+    const v = cvs.fillStyle; if(v === '#010203' && !/^#010203$/i.test(c)) return c;
+    let r, g, b, a = 1, m;
+    if(v[0] === '#'){ r = parseInt(v.slice(1, 3), 16); g = parseInt(v.slice(3, 5), 16); b = parseInt(v.slice(5, 7), 16); }
+    else if((m = v.match(/rgba?\(([^)]+)\)/))){ [r, g, b, a = 1] = m[1].split(',').map(Number); }
+    else return c;
+    let L = .2126 * r + .7152 * g + .0722 * b;
+    L = Math.max(0, Math.min(255, (L - 128) * 1.08 + 128)) | 0;
+    return `rgba(${L},${L},${L},${a})`;
+  }
+  const grayWalk = v => typeof v === 'string' ? toGray(v) : Array.isArray(v) ? v.map((x, i) => i === 0 && typeof x === 'string' ? x : grayWalk(x)) : v;
+  function grayStyle(){
+    try{
+      map.getStyle().layers.forEach(l => {
+        if(l.id === 'spots-heat') return;
+        Object.keys(l.paint || {}).forEach(k => {
+          if(/-color$/.test(k)) try{ map.setPaintProperty(l.id, k, grayWalk(l.paint[k])); }catch(e){}
+        });
+      });
+    }catch(e){}
+  }
+  /* Heat: warmer where spots cluster, favorites count extra */
+  let heatData = { type:'FeatureCollection', features:[] };
+  function setHeat(list){
+    heatData = { type:'FeatureCollection', features:(FX.heat ? list : []).map(s => ({ type:'Feature', properties:{ w:s.fav ? 2.5 : 1 }, geometry:{ type:'Point', coordinates:[s.lng, s.lat] } })) };
+    const src = map && map.getSource && map.getSource('spots-heat'); if(src) src.setData(heatData);
+  }
+  function addHeat(){
+    if(!FX.heat || map.getSource('spots-heat')) return;
+    map.addSource('spots-heat', { type:'geojson', data:heatData });
+    const firstLabel = (map.getStyle().layers.find(l => l.type === 'symbol') || {}).id;
+    map.addLayer({ id:'spots-heat', type:'heatmap', source:'spots-heat', paint:{
+      'heatmap-weight':['get', 'w'],
+      'heatmap-intensity':['interpolate', ['linear'], ['zoom'], 0, .8, 9, 1.4, 15, 2.6],
+      'heatmap-radius':['interpolate', ['linear'], ['zoom'], 0, 10, 5, 24, 9, 38, 12, 42, 16, 52],
+      'heatmap-color':['interpolate', ['linear'], ['heatmap-density'],
+        0, 'rgba(0,0,0,0)', .12, 'rgba(88,28,170,.32)', .32, 'rgba(205,40,95,.55)', .58, 'rgba(255,115,35,.72)', .82, 'rgba(255,205,45,.85)', 1, 'rgba(255,244,190,.95)'],
+      'heatmap-opacity':['interpolate', ['linear'], ['zoom'], 0, .9, 13, .8, 16.5, .3, 18.5, 0]
+    } }, firstLabel);
+  }
+
   function ensureMap(){
     if(map){ map.resize(); return; }
     mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -1153,6 +1200,7 @@
       center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11 });
     // Zoomed out it's a globe floating in space; zoomed in it flattens into the normal map on its own
     map.on('style.load', () => {
+      if(!adjusting){ grayStyle(); addHeat(); }
       if(FX.globe) try{ map.setFog({ color:'rgb(18,18,18)', 'high-color':'rgb(46,46,46)', 'horizon-blend':.05, 'space-color':'rgb(0,0,0)', 'star-intensity':.35 }); }catch(e){}
     });
     map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'top-right');
@@ -1223,6 +1271,7 @@
   const SLOTS = [[0, 0, 0], [40, -30, 7], [-40, 26, -6], [36, 34, 4]];
   function drawPins(list){
     if(!map) return;
+    setHeat(view === 'feed' ? [] : list);
     markers.forEach(m => m.remove()); markers = []; pinMap = new Map();
     if(view === 'feed') return;
     list.forEach(s => {
@@ -1251,6 +1300,11 @@
     morphOpen(it.s);
   }
   function layoutPins(){
+    if(map && FX.fadePins){
+      // full strength up close, see-through (never gone) as you pull back toward the globe
+      const z = map.getZoom(), t = Math.max(0, Math.min(1, (z - 8) / 5.5));
+      map.getContainer().style.setProperty('--pinop', (.3 + .7 * t).toFixed(3));
+    }
     layoutCore(); if(map && pinMap.size) growTarget();
   }
   function layoutCore(){
@@ -1324,7 +1378,7 @@
     if(it.el.dataset.size !== size) it.el.dataset.size = size;
     it.el.style.zIndex = z;
     it.el.style.setProperty('--rot', rot.toFixed(1) + 'deg');
-    const f = it.el.querySelector('.face'); if(f) f.style.opacity = op;
+    const f = it.el.querySelector('.face'); if(f) f.style.setProperty('--tk', op);
     const bd = it.el.querySelector('.badge'); if(bd.textContent !== badge) bd.textContent = badge;
   }
   function fitPins(){
