@@ -20,6 +20,8 @@
     --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+  input,textarea{-webkit-user-select:text;user-select:text}
   html,body{margin:0;height:100%;background:#000;color:var(--ink);font-family:"Archivo",system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
   button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
   button:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
@@ -548,10 +550,14 @@
   const urlFor = s => { if(!urls.has(s.id)) urls.set(s.id, URL.createObjectURL(s.blob)); return urls.get(s.id); };
 
   /* Camera */
+  let camSeq = 0;
   async function startCamera(){
+    const my = ++camSeq;
     stopCamera();
     try{
-      stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:facing }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false });
+      const st = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:facing }, width:{ ideal:1920 }, height:{ ideal:1080 } }, audio:false });
+      if(my !== camSeq){ st.getTracks().forEach(t => t.stop()); return; } // a newer request won
+      stream = st;
       video.srcObject = stream; $('camNotice').classList.remove('show');
       video.classList.toggle('mirror', facing === 'user');
     }catch(e){
@@ -561,7 +567,11 @@
   }
   function stopCamera(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } }
   $('camRetry').onclick = startCamera;
+  let lastFlip = 0;
   function flipCamera(){
+    // iPhone can report one double tap twice; without this it flips and flips straight back
+    if(Date.now() - lastFlip < 700) return;
+    lastFlip = Date.now();
     facing = facing === 'environment' ? 'user' : 'environment';
     video.classList.add('flipping'); startCamera().then(() => setTimeout(() => video.classList.remove('flipping'), 120));
   }
