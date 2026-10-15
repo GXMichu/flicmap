@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="06">
+<meta name="flicmap-version" content="07">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -417,6 +417,22 @@
   @keyframes dotIn{from{transform:scale(0);opacity:0}}
   .splash .tag{position:absolute;bottom:calc(var(--safe-b) + 46px);left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:rgba(255,255,255,.45);
     letter-spacing:.02em;animation:fadeIn .5s .45s ease backwards}
+  /* Feed and Profile are solid sheets that slide over the live map */
+  .feed,.ptab{background:var(--panel);z-index:4;will-change:transform}
+  .feed.leaving,.ptab.leaving{display:block;pointer-events:none}
+  .feed.show,.ptab.show,.feed.leaving,.ptab.leaving{box-shadow:0 0 40px rgba(0,0,0,.6)}
+  #map{transform-origin:50% 45%}
+
+  /* Curved TV-screen glass over the map */
+  .tvglass{position:absolute;inset:0;z-index:1;pointer-events:none;display:none;
+    background:
+      radial-gradient(130% 95% at 50% 48%,transparent 58%,rgba(0,0,0,.38) 82%,rgba(0,0,0,.82) 100%),
+      linear-gradient(128deg,rgba(255,255,255,.07),rgba(255,255,255,0) 32%);
+    box-shadow:inset 0 0 70px 6px rgba(0,0,0,.65),inset 0 0 0 1px rgba(255,255,255,.04);
+    border-radius:34px}
+  .drawer.fx-tv[data-view="map"] .tvglass,.drawer.fx-tv[data-view="explore"] .tvglass{display:block}
+  .drawer.adjusting .tvglass{display:none!important}
+  .drawer.fx-tv[data-view="map"] #map .mapboxgl-canvas-container,.drawer.fx-tv[data-view="explore"] #map .mapboxgl-canvas-container{border-radius:34px;overflow:hidden}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -469,6 +485,7 @@
   </div>
   <div class="dbody">
     <div id="map"></div>
+    <div class="tvglass" aria-hidden="true"></div>
     <div id="adjustUI">
       <div class="xhair"><svg viewBox="0 0 44 58" aria-hidden="true"><path d="M22 56S4 34 4 21a18 18 0 0 1 36 0c0 13-18 35-18 35z" fill="#ffd60a" stroke="#000" stroke-width="2.5"/><circle cx="22" cy="21" r="6.5" fill="#000"/></svg></div>
       <button class="satbtn" id="adjSat">Street map</button>
@@ -551,6 +568,13 @@
 (() => {
   // Public Mapbox token (pk), locked to gxmichu.github.io in Mapbox. Split so GitHub's scanner doesn't block it.
   const MAPBOX_TOKEN = ['pk', 'eyJ1IjoidHJhdnhwcnoiLCJhIjoiY211bzNqdGN0MDFjYzJ4cHp1a280a2VqdCJ9', 'emltSInnaZZMiexFIEsxIA'].join('.');
+
+  /* Look-and-feel switches. Set any to false to turn that effect off. */
+  const FX = {
+    globe: true,       // zoom all the way out into a 3D globe
+    tvGlass: true,     // curved TV-screen edges and corners over the map
+    slideOver: true    // Feed/Profile slide over the map while it eases back underneath
+  };
 
   // Supabase publishable key is meant to be public; the database rules decide what anyone can do.
   const SB_URL = 'https://pkldtyjilkeomypaozkh.supabase.co';
@@ -849,6 +873,7 @@
 
   /* Map and album */
   let mapScope = 'map';
+  if(FX.tvGlass) drawer.classList.add('fx-tv');
   const setHH = () => drawer.style.setProperty('--hh', $('dhead').offsetHeight + 'px');
   if(window.ResizeObserver) new ResizeObserver(setHH).observe($('dhead')); setTimeout(setHH, 0);
   $('segMine').onclick = () => setView('map');
@@ -860,11 +885,32 @@
     else if(v === 'map') setMine(!mineSheet.classList.contains('open'));
   });
   const ORDER = { feed:0, map:1, explore:1, profile:2 };
+  const panelOf = x => x === 'feed' ? $('feed') : x === 'profile' ? $('ptab') : null;
+  function slideViews(was, v, dir){
+    const outP = panelOf(was), inP = panelOf(v), M = $('map'), D = 380, E = 'cubic-bezier(.22,.8,.2,1)';
+    if(RM.matches) return;
+    if(outP && outP !== inP){
+      outP.classList.add('leaving');
+      const a = outP.animate([{ transform:'none' }, { transform:`translateX(${-dir * 100}%)` }], { duration:D, easing:E });
+      a.onfinish = a.oncancel = () => outP.classList.remove('leaving');
+    }
+    if(inP){
+      inP.animate([{ transform:`translateX(${dir * 100}%)` }, { transform:'none' }], { duration:D, easing:E });
+      if(!outP){ // leaving the map: it sinks back as the sheet covers it
+        M.style.visibility = 'visible';
+        M.animate([{ transform:'none', opacity:1 }, { transform:'scale(.93)', opacity:.35 }], { duration:D, easing:E });
+        setTimeout(() => { if(view !== 'map' && view !== 'explore') M.style.visibility = 'hidden'; }, D);
+      }
+    }else{ // arriving at the map: it rises forward into place
+      M.animate([{ transform:'scale(.93)', opacity:.35 }, { transform:'none', opacity:1 }], { duration:D + 80, easing:E });
+    }
+    $('dhead').animate([{ opacity:.25 }, { opacity:1 }], { duration:320, easing:'ease-out' });
+  }
   function moveTabDot(){
     const b = $('tabbar').querySelector('[aria-current="true"]'); if(!b) return;
     const d = $('tabdot'); d.style.left = b.offsetLeft + 'px'; d.style.width = b.offsetWidth + 'px';
   }
-  function setView(v){
+  function setView(v, opts = {}){
     endAdjust(); hideSheet();
     const was = view; view = v;
     const dir = Math.sign(ORDER[v] - ORDER[was]);
@@ -885,10 +931,12 @@
     if(v === 'feed' && !feed.length && !feedLoading){ if(!lastFix) feedSort = 'new'; loadFeed(true); }
     else if(v === 'map' && was === 'explore') fitPins();
     moveTabDot();
-    // slide the new section in from the side you're heading toward
-    const panel = v === 'feed' ? $('feed') : v === 'profile' ? $('ptab') : $('map');
-    if(dir) anim(panel, [{ opacity:0, transform:`translateX(${dir * 34}px)` }, { opacity:1, transform:'none' }], { duration:340 });
-    if(dir) anim($('dhead'), [{ opacity:.4 }, { opacity:1 }], { duration:260 });
+    // Feed and Profile are sheets laid over the map: they slide across while the map
+    // eases back (or forward) underneath, so every switch feels like one continuous surface
+    if(dir && !opts.quiet){
+      if(FX.slideOver) slideViews(was, v, dir);
+      else { const pnl = panelOf(v) || $('map'); anim(pnl, [{ opacity:0, transform:`translateX(${dir * 34}px)` }, { opacity:1, transform:'none' }], { duration:340 }); }
+    }
     if(v === 'profile') stagger($('ptab').querySelectorAll('.album button'), [{ opacity:0, transform:'scale(.92)' }, { opacity:1, transform:'none' }]);
     if((v === 'map' || v === 'explore') && was !== v) popPins = true, drawPins(visible());
   }
@@ -936,10 +984,12 @@
     el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
     $('mineHead').addEventListener('click', () => { if(!dragged) setMine(!el.classList.contains('open')); dragged = false; });
   })();
-  // Edge swipes: from the right edge of Feed swipe left, or from the left edge of Profile swipe right, to get to the map
+  // Edge swipes: from the right edge of Feed swipe left, or from the left edge of Profile swipe right.
+  // The sheet tracks your finger and the map comes forward underneath it.
   (() => {
-    const EDGE = 26;
+    const EDGE = 26, M = $('map');
     let x0 = null, y0 = 0, dx = 0, t0 = 0, on = false, panel = null, dir = 0;
+    const paint = p => { M.style.transform = `scale(${.93 + .07 * p})`; M.style.opacity = String(.35 + .65 * p); };
     drawer.addEventListener('touchstart', e => {
       x0 = null; if(!drawerOpen || $('sheet').classList.contains('show')) return;
       const x = e.touches[0].clientX;
@@ -953,21 +1003,29 @@
       const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
       if(!on){
         if(Math.max(Math.abs(mx), Math.abs(my)) < 8) return;
-        if(Math.abs(mx) > Math.abs(my) && Math.sign(mx) === dir) on = true; else { x0 = null; return; }
+        if(Math.abs(mx) > Math.abs(my) && Math.sign(mx) === dir){
+          on = true; ensureMap(); M.style.visibility = 'visible'; M.style.transition = 'none'; panel.style.transition = 'none'; $('empty').style.visibility = 'hidden';
+        } else { x0 = null; return; }
       }
       dx = dir > 0 ? Math.max(0, mx) : Math.min(0, mx);
-      panel.style.transition = 'none';
-      panel.style.transform = `translateX(${dx * .6}px)`;
-      panel.style.opacity = String(1 - Math.min(.6, Math.abs(dx) / 500));
+      panel.style.transform = `translateX(${dx}px)`;
+      paint(Math.min(1, Math.abs(dx) / innerWidth));
       e.preventDefault();
     }, { passive:false });
     const end = () => {
       if(x0 == null) return; x0 = null; if(!on) return;
-      const v = Math.abs(dx) / Math.max(1, Date.now() - t0), go = Math.abs(dx) > 80 || v > .45;
-      panel.style.transition = 'transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s';
-      panel.style.transform = ''; panel.style.opacity = '';
-      const p = panel; setTimeout(() => { p.style.transition = ''; }, 320);
-      if(go) setView(mapScope);
+      const v = Math.abs(dx) / Math.max(1, Date.now() - t0), go = Math.abs(dx) > innerWidth * .28 || v > .45;
+      const E = 'cubic-bezier(.22,.8,.2,1)', T = go ? 260 : 300, p = panel;
+      p.style.transition = `transform ${T}ms ${E}`; M.style.transition = `transform ${T}ms ${E},opacity ${T}ms ${E}`;
+      requestAnimationFrame(() => {
+        p.style.transform = go ? `translateX(${dir * 100}%)` : 'none';
+        paint(go ? 1 : 0);
+      });
+      setTimeout(() => {
+        p.style.transition = ''; M.style.transition = ''; M.style.transform = ''; M.style.opacity = ''; $('empty').style.visibility = '';
+        if(go){ setView(mapScope, { quiet:true }); p.style.transform = ''; map && map.resize(); }
+        else { p.style.transform = ''; M.style.visibility = 'hidden'; }
+      }, T + 20);
     };
     drawer.addEventListener('touchend', end); drawer.addEventListener('touchcancel', end);
   })();
@@ -1091,8 +1149,12 @@
     if(map){ map.resize(); return; }
     mapboxgl.accessToken = MAPBOX_TOKEN;
     const c = spots[0] || lastFix;
-    map = new mapboxgl.Map({ container:'map', style:DARK,
+    map = new mapboxgl.Map({ container:'map', style:DARK, projection:FX.globe ? 'globe' : 'mercator', minZoom:FX.globe ? 0.6 : 0,
       center: c ? [c.lng, c.lat] : [-81.0998, 32.0809], zoom: c ? 14 : 11 });
+    // Zoomed out it's a globe floating in space; zoomed in it flattens into the normal map on its own
+    map.on('style.load', () => {
+      if(FX.globe) try{ map.setFog({ color:'rgb(18,18,18)', 'high-color':'rgb(46,46,46)', 'horizon-blend':.05, 'space-color':'rgb(0,0,0)', 'star-intensity':.35 }); }catch(e){}
+    });
     map.addControl(new mapboxgl.GeolocateControl({ positionOptions:{ enableHighAccuracy:true }, trackUserLocation:true, showUserHeading:true }), 'top-right');
     map.on('load', () => { mapReady = true; drawPins(visible()); if(view === 'explore') loadPublic(); else fitPins(); });
     map.on('zoomend', autoOpen);
