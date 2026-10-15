@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="02">
+<meta name="flicmap-version" content="03">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -335,6 +335,41 @@
   .acct{margin-top:24px;padding-top:6px;border-top:1px solid #1a1a1a}
   .acct .btn{width:100%;margin-top:10px}
   .note:disabled{opacity:.6}
+  /* Floating menu: three equal slots so "map" sits dead center under the swipe hint */
+  .tabbar{display:grid;grid-template-columns:repeat(3,92px);gap:0;padding:14px 6px 10px;
+    background:rgba(28,28,28,.34);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
+    box-shadow:0 8px 28px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.12),inset 0 1px 0 rgba(255,255,255,.14)}
+  .tabbar button{padding:4px 0;text-align:center;color:rgba(255,255,255,.58);text-shadow:0 1px 6px rgba(0,0,0,.55)}
+  .tabbar button[aria-current="true"]{color:#fff}
+  .tabbar button::before{box-shadow:0 0 6px rgba(0,0,0,.5)}
+  .swipehint{top:-16px}
+
+  /* Glass header over the map */
+  .drawer[data-view="map"] .dhead,.drawer[data-view="explore"] .dhead{position:absolute;left:0;right:0;top:0;z-index:6;background:none;padding-bottom:14px}
+  .drawer[data-view="map"] .dhead::before,.drawer[data-view="explore"] .dhead::before{content:'';position:absolute;inset:0 0 -18px;z-index:-1;
+    background:linear-gradient(rgba(0,0,0,.62),rgba(0,0,0,.28) 70%,rgba(0,0,0,0));backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    -webkit-mask-image:linear-gradient(#000 65%,transparent);mask-image:linear-gradient(#000 65%,transparent)}
+  .drawer[data-view="map"] .grab,.drawer[data-view="explore"] .grab{background:rgba(255,255,255,.35)}
+  #scopeSeg{border-radius:99px;padding:3px;background:rgba(255,255,255,.1);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}
+  #scopeSeg button{border-radius:99px;color:rgba(255,255,255,.7)}
+  #scopeSeg button[aria-pressed="true"]{background:rgba(255,255,255,.92);color:#000}
+  .drawer[data-view="map"] .closeX,.drawer[data-view="explore"] .closeX{background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .drawer[data-view="map"] .count,.drawer[data-view="explore"] .count{color:rgba(255,255,255,.75);text-shadow:0 1px 6px rgba(0,0,0,.6)}
+  .drawer[data-view="map"] .filters .chip,.drawer[data-view="explore"] .filters .chip{background:rgba(255,255,255,.1);color:#f2f2f2;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.1);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+  .drawer[data-view="map"] .filters .chip[aria-pressed="true"],.drawer[data-view="explore"] .filters .chip[aria-pressed="true"]{background:rgba(255,255,255,.92);color:#000}
+  .filters{-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent);padding-right:24px}
+  .drawer[data-view="map"] .empty,.drawer[data-view="explore"] .empty{top:calc(var(--hh,110px) + 8px)}
+  .drawer[data-view="map"] .mapboxgl-ctrl-top-right,.drawer[data-view="explore"] .mapboxgl-ctrl-top-right{top:calc(var(--hh,110px) - 4px)}
+  .satbtn{top:calc(var(--hh,110px) + 8px)}
+  .mapboxgl-ctrl-group{background:rgba(28,28,28,.4)!important;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:12px!important;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)!important}
+  .mapboxgl-ctrl-group button .mapboxgl-ctrl-icon{filter:invert(1)}
+  /* Mapbox requires its logo stay visible; keep it tucked in the corner, level with the menu */
+  .mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{bottom:calc(var(--safe-b) + 80px)}
+  .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl{margin:0 0 0 12px}
+  .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl{margin:0 12px 0 0}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -751,6 +786,8 @@
 
   /* Map and album */
   let mapScope = 'map';
+  const setHH = () => drawer.style.setProperty('--hh', $('dhead').offsetHeight + 'px');
+  if(window.ResizeObserver) new ResizeObserver(setHH).observe($('dhead')); setTimeout(setHH, 0);
   $('segMine').onclick = () => setView('map');
   $('segEveryone').onclick = () => setView('explore');
   $('tabbar').addEventListener('click', e => {
