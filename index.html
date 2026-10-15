@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="04">
+<meta name="flicmap-version" content="05">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -207,8 +207,10 @@
     box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.06)}
   .tabbar button{position:relative;padding:4px 14px;font-size:19px;font-weight:600;letter-spacing:-.01em;color:rgba(255,255,255,.36);transition:color .2s}
   .tabbar button[aria-current="true"]{color:#fff}
-  .tabdot{position:absolute;top:7px;left:0;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.5);
-    transition:left .42s cubic-bezier(.34,1.45,.5,1);pointer-events:none}
+  .tabdot{position:absolute;top:6px;bottom:6px;left:0;width:92px;border-radius:99px;z-index:0;pointer-events:none;
+    background:rgba(255,255,255,.17);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),inset 0 1px 0 rgba(255,255,255,.22),0 4px 14px rgba(0,0,0,.25);
+    transition:left .45s cubic-bezier(.34,1.3,.5,1),width .3s ease}
+  .tabdot.dragging{transition:none}
   .tabbar{touch-action:none}
   .swipehint{position:absolute;top:-17px;left:50%;width:18px;height:10px;margin-left:-9px;display:none;pointer-events:none;
     fill:none;stroke:rgba(255,255,255,.6);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));
@@ -336,12 +338,12 @@
   .acct .btn{width:100%;margin-top:10px}
   .note:disabled{opacity:.6}
   /* Floating menu: three equal slots so "map" sits dead center under the swipe hint */
-  .tabbar{display:grid;grid-template-columns:repeat(3,92px);gap:0;padding:14px 6px 10px;
+  .tabbar{display:grid;grid-template-columns:repeat(3,92px);gap:0;padding:6px;
     background:rgba(28,28,28,.34);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
     box-shadow:0 8px 28px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.12),inset 0 1px 0 rgba(255,255,255,.14)}
-  .tabbar button{padding:4px 0;text-align:center;color:rgba(255,255,255,.58);text-shadow:0 1px 6px rgba(0,0,0,.55)}
+  .tabbar button{position:relative;z-index:1;height:46px;padding:0;display:grid;place-items:center;line-height:1;color:rgba(255,255,255,.58);text-shadow:0 1px 6px rgba(0,0,0,.55)}
   .tabbar button[aria-current="true"]{color:#fff}
-  .swipehint{top:-16px}
+  .swipehint{top:-17px}
 
   /* Glass header over the map */
   .drawer[data-view="map"] .dhead,.drawer[data-view="explore"] .dhead{position:absolute;left:0;right:0;top:0;z-index:6;background:none;padding-bottom:14px}
@@ -860,7 +862,7 @@
   const ORDER = { feed:0, map:1, explore:1, profile:2 };
   function moveTabDot(){
     const b = $('tabbar').querySelector('[aria-current="true"]'); if(!b) return;
-    $('tabdot').style.left = (b.offsetLeft + b.offsetWidth / 2) + 'px';
+    const d = $('tabdot'); d.style.left = b.offsetLeft + 'px'; d.style.width = b.offsetWidth + 'px';
   }
   function setView(v){
     endAdjust(); hideSheet();
@@ -934,34 +936,64 @@
     el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
     $('mineHead').addEventListener('click', () => { if(!dragged) setMine(!el.classList.contains('open')); dragged = false; });
   })();
-  // Start a swipe up on the floating menu to pull your photos up; swipe down on it to put them away
+  // The floating menu takes two gestures: slide sideways to move between feed / map / profile,
+  // or (on the map) swipe up to pull your photos up and down to put them away
   (() => {
-    const tb = $('tabbar'), el = mineSheet;
-    let y0 = null, dy = 0, t0 = 0, drag = false, ate = false;
+    const tb = $('tabbar'), el = mineSheet, pill = $('tabdot');
+    let x0 = null, y0 = 0, dx = 0, dy = 0, t0 = 0, mode = null, ate = false, pill0 = 0;
+    const tabs = () => [...tb.querySelectorAll('[data-t]')];
     tb.addEventListener('touchstart', e => {
-      ate = false; if(view !== 'map' || adjusting){ y0 = null; return; }
-      y0 = e.touches[0].clientY; t0 = Date.now(); dy = 0; drag = false;
+      ate = false; if(adjusting){ x0 = null; return; }
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = Date.now(); dx = dy = 0; mode = null;
+      pill0 = pill.offsetLeft;
     }, { passive:true });
     tb.addEventListener('touchmove', e => {
-      if(y0 == null) return;
-      const d = e.touches[0].clientY - y0, open = el.classList.contains('open');
-      if(!drag){
-        if(Math.abs(d) < 8) return;
-        if((!open && d < 0) || (open && d > 0)) drag = ate = true; else { y0 = null; return; }
+      if(x0 == null) return;
+      dx = e.touches[0].clientX - x0; dy = e.touches[0].clientY - y0;
+      if(!mode){
+        if(Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+        if(Math.abs(dx) > Math.abs(dy)) mode = 'x';
+        else {
+          const open = el.classList.contains('open');
+          if(view === 'map' && ((!open && dy < 0) || (open && dy > 0))) mode = 'y'; else { x0 = null; return; }
+        }
+        ate = true;
       }
-      dy = d; const H = el.offsetHeight;
-      el.style.transition = 'none';
-      el.style.transform = `translateY(${Math.max(0, Math.min(H, (open ? 0 : H) + dy))}px)`;
+      if(mode === 'x'){
+        const t = tabs(), lo = t[0].offsetLeft, hi = t[t.length - 1].offsetLeft;
+        let L = pill0 + dx;
+        if(L < lo) L = lo - Math.sqrt(lo - L) * 2; if(L > hi) L = hi + Math.sqrt(L - hi) * 2; // rubber band at the ends
+        pill.classList.add('dragging'); pill.style.left = L + 'px';
+        const mid = L + pill.offsetWidth / 2;
+        t.forEach(b => b.style.color = Math.abs(b.offsetLeft + b.offsetWidth / 2 - mid) < b.offsetWidth / 2 ? '#fff' : '');
+      }else{
+        const H = el.offsetHeight, open = el.classList.contains('open');
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${Math.max(0, Math.min(H, (open ? 0 : H) + dy))}px)`;
+      }
       e.preventDefault();
     }, { passive:false });
     const end = () => {
-      if(y0 == null) return; y0 = null; if(!drag) return; drag = false;
+      if(x0 == null) return; x0 = null; if(!mode) return;
       setTimeout(() => { ate = false; }, 450);
-      const open = el.classList.contains('open'), v = dy / Math.max(1, Date.now() - t0);
-      el.style.transition = ''; el.style.transform = '';
-      if(!open && (dy < -60 || v < -.4)) setMine(true);
-      else if(open && (dy > 60 || v > .4)) setMine(false);
-      else setMine(open);
+      const v = (mode === 'x' ? dx : dy) / Math.max(1, Date.now() - t0);
+      if(mode === 'x'){
+        const t = tabs(); t.forEach(b => b.style.color = '');
+        pill.classList.remove('dragging');
+        let i = t.findIndex(b => b.getAttribute('aria-current') === 'true');
+        const mid = pill.offsetLeft + pill.offsetWidth / 2;
+        let near = 0, bd = Infinity; t.forEach((b, k) => { const d = Math.abs(b.offsetLeft + b.offsetWidth / 2 - mid); if(d < bd){ bd = d; near = k; } });
+        if(near === i && Math.abs(v) > .45) near = Math.max(0, Math.min(t.length - 1, i + Math.sign(dx))); // a quick flick moves one tab
+        const name = t[near].dataset.t, target = name === 'map' ? mapScope : name;
+        if(target !== view) setView(target); else moveTabDot();
+      }else{
+        const open = el.classList.contains('open');
+        el.style.transition = ''; el.style.transform = '';
+        if(!open && (dy < -60 || v < -.4)) setMine(true);
+        else if(open && (dy > 60 || v > .4)) setMine(false);
+        else setMine(open);
+      }
+      mode = null;
     };
     tb.addEventListener('touchend', end); tb.addEventListener('touchcancel', end);
     tb.addEventListener('click', e => { if(ate){ e.stopPropagation(); e.preventDefault(); ate = false; } }, true);
