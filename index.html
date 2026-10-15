@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
+<meta name="flicmap-version" content="2026.10.14-23">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -1524,6 +1525,7 @@
       else if(!mine.length) h += '<div class="phint" style="padding:0 16px">Nothing published yet. Open a spot on the map and tap Share to public map.</div>';
       else h += `<div class="album">${mine.map(s => `<button data-id="${s.id}"${s.hidden ? ' class="dim"' : ''}><img src="${imgFor(s)}" alt="" loading="lazy">${s.hidden ? '<em>Under review</em>' : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('')}</div>`;
     }
+    h += `<div class="phint" style="text-align:center;margin:28px 0 0">FlicMap ${esc(APP_V)}</div>`;
     $('ptab').innerHTML = h;
   }
   $('ptab').addEventListener('click', e => {
@@ -1643,8 +1645,29 @@
   function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), Math.max(1600, m.length * 55)); }
 
   document.addEventListener('visibilitychange', () => {
-    if(document.hidden) stopCamera(); else if(cameraIdle()) startCamera();
+    if(document.hidden) stopCamera(); else { if(cameraIdle()) startCamera(); checkUpdate(); }
   });
+
+  /* Self-update: the Home Screen app hangs on to old code, so check for a newer
+     version whenever it opens and reload into it when you're not mid-task */
+  const APP_V = (document.querySelector('meta[name="flicmap-version"]') || {}).content || '';
+  let pendingUpdate = null, lastCheck = 0;
+  async function checkUpdate(){
+    if(Date.now() - lastCheck < 20000) return; lastCheck = Date.now();
+    try{
+      const r = await fetch(location.pathname + '?check=' + Date.now(), { cache:'no-store' });
+      const m = (await r.text()).match(/name="flicmap-version" content="([^"]+)"/);
+      if(m && m[1] !== APP_V){ pendingUpdate = m[1]; applyUpdate(); }
+    }catch(e){}
+  }
+  function applyUpdate(){
+    if(!pendingUpdate) return;
+    const busy = $('review').classList.contains('show') || $('profile').classList.contains('show') || $('dlg').classList.contains('show') || adjusting || !$('titleInput').hidden;
+    if(busy) return setTimeout(applyUpdate, 4000);
+    toast('Updating FlicMap');
+    setTimeout(() => location.replace(location.pathname + '?v=' + encodeURIComponent(pendingUpdate)), 600);
+  }
+  setTimeout(checkUpdate, 1500);
 
   (async () => {
     startCamera(); startGPS();
