@@ -7,7 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="08">
+<meta name="flicmap-version" content="09">
+<meta name="flicmap-stage" content="Beta">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -418,6 +419,7 @@
   @keyframes dotIn{from{transform:scale(0);opacity:0}}
   .splash .tag{position:absolute;bottom:calc(var(--safe-b) + 46px);left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:rgba(255,255,255,.45);
     letter-spacing:.02em;animation:fadeIn .5s .45s ease backwards}
+  .splash .ver{display:block;margin-top:8px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.3)}
   /* Feed and Profile are solid sheets that slide over the live map */
   .feed,.ptab{background:var(--panel);z-index:4;will-change:transform}
   .feed.leaving,.ptab.leaving{display:block;pointer-events:none}
@@ -441,7 +443,7 @@
 
 <div class="splash" id="splash" aria-hidden="true">
   <div class="wm"><span style="--i:0">f</span><span style="--i:1">l</span><span style="--i:2">i</span><span style="--i:3">c</span><span style="--i:4">m</span><span style="--i:5">a</span><span style="--i:6">p</span><i class="sdot"></i></div>
-  <div class="tag">find it. pin it. shoot it later.</div>
+  <div class="tag">find it. pin it. shoot it later.<span class="ver" id="splashVer"></span></div>
 </div>
 <video id="cam" autoplay playsinline muted></video>
 <canvas id="canvas" hidden></canvas>
@@ -1829,7 +1831,7 @@
       else if(!mine.length) h += '<div class="phint" style="padding:0 16px">Nothing published yet. Open a spot on the map and tap Share to public map.</div>';
       else h += `<div class="album">${mine.map(s => `<button data-id="${s.id}"${s.hidden ? ' class="dim"' : ''}><img src="${imgFor(s)}" alt="" loading="lazy">${s.hidden ? '<em>Under review</em>' : ''}${s.note ? `<span>${esc(s.note)}</span>` : ''}</button>`).join('')}</div>`;
     }
-    h += `<div class="phint" style="text-align:center;margin:28px 0 0">FlicMap v.${esc(APP_V)}</div>`;
+    h += `<div class="phint" style="text-align:center;margin:28px 0 0">FlicMap ${esc(APP_LABEL)}</div>`;
     $('ptab').innerHTML = h;
   }
   $('ptab').addEventListener('click', e => {
@@ -1956,6 +1958,9 @@
   /* Self-update: the Home Screen app hangs on to old code, so check for a newer
      version whenever it opens and reload into it when you're not mid-task */
   const APP_V = (document.querySelector('meta[name="flicmap-version"]') || {}).content || '';
+  const APP_STAGE = (document.querySelector('meta[name="flicmap-stage"]') || {}).content || '';
+  const APP_LABEL = `${APP_STAGE ? APP_STAGE + ' ' : ''}v.${APP_V}`;
+  { const sv = $('splashVer'); if(sv) sv.textContent = APP_LABEL; }
   let pendingUpdate = null, lastCheck = 0;
   async function checkUpdate(){
     if(Date.now() - lastCheck < 20000) return; lastCheck = Date.now();
