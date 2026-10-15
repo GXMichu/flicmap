@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="03">
+<meta name="flicmap-version" content="04">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -149,8 +149,8 @@
   .sheet .chips{margin:0 0 14px}
   .sheet .chips .chip{padding:6px 10px;font-size:13px}
   .sheet .row + .row{margin-top:10px}
-  .scrim{position:fixed;inset:0;z-index:34;background:rgba(0,0,0,.4);display:none}
-  .scrim.show{display:block}
+  .scrim{position:fixed;inset:0;z-index:34;background:rgba(0,0,0,.4);opacity:0;visibility:hidden;transition:opacity .28s ease,visibility 0s .28s}
+  .scrim.show{opacity:1;visibility:visible;transition:opacity .28s ease}
 
   .toast{position:fixed;left:50%;top:calc(var(--safe-t) + 70px);transform:translate(-50%,-20px);opacity:0;z-index:60;
     padding:11px 18px;border-radius:99px;background:var(--white);color:#000;font-weight:700;font-size:14px;transition:.25s;pointer-events:none}
@@ -207,8 +207,8 @@
     box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1px rgba(255,255,255,.06)}
   .tabbar button{position:relative;padding:4px 14px;font-size:19px;font-weight:600;letter-spacing:-.01em;color:rgba(255,255,255,.36);transition:color .2s}
   .tabbar button[aria-current="true"]{color:#fff}
-  .tabbar button::before{content:'';position:absolute;top:-8px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff;opacity:0;transform:scale(.4);transition:.2s}
-  .tabbar button[aria-current="true"]::before{opacity:1;transform:none}
+  .tabdot{position:absolute;top:7px;left:0;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.5);
+    transition:left .42s cubic-bezier(.34,1.45,.5,1);pointer-events:none}
   .tabbar{touch-action:none}
   .swipehint{position:absolute;top:-17px;left:50%;width:18px;height:10px;margin-left:-9px;display:none;pointer-events:none;
     fill:none;stroke:rgba(255,255,255,.6);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));
@@ -341,7 +341,6 @@
     box-shadow:0 8px 28px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.12),inset 0 1px 0 rgba(255,255,255,.14)}
   .tabbar button{padding:4px 0;text-align:center;color:rgba(255,255,255,.58);text-shadow:0 1px 6px rgba(0,0,0,.55)}
   .tabbar button[aria-current="true"]{color:#fff}
-  .tabbar button::before{box-shadow:0 0 6px rgba(0,0,0,.5)}
   .swipehint{top:-16px}
 
   /* Glass header over the map */
@@ -370,11 +369,61 @@
   .mapboxgl-ctrl-bottom-left,.mapboxgl-ctrl-bottom-right{bottom:calc(var(--safe-b) + 80px)}
   .mapboxgl-ctrl-bottom-left .mapboxgl-ctrl{margin:0 0 0 12px}
   .mapboxgl-ctrl-bottom-right .mapboxgl-ctrl{margin:0 12px 0 0}
+  /* ---------- Motion ---------- */
+  :root{--spring:cubic-bezier(.34,1.45,.5,1);--out:cubic-bezier(.2,.8,.2,1)}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}}
+  @keyframes fadeIn{from{opacity:0}}
+  @keyframes sheetUp{from{transform:translateY(40px);opacity:0}}
+  @keyframes zoomSettle{from{transform:scale(1.14)}}
+  @keyframes tileIn{from{opacity:0;transform:translateY(16px) scale(.97)}}
+  @keyframes pinPop{from{opacity:0;transform:translate(-50%,-50%) scale(.35)}}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,214,10,.55)}100%{box-shadow:0 0 0 14px rgba(255,214,10,0)}}
+
+  /* press feedback */
+  .btn,.chip,.cat,.tile,.album button,.closeX,.round,.seg button,.fmore,.opts button,.pull,.titlebtn,.fav{transition:transform .18s var(--spring),background-color .22s,color .22s,opacity .2s,box-shadow .22s}
+  .btn:active,.chip:active,.closeX:active,.round:active,.fmore:active,.opts button:active,.fav:active{transform:scale(.94)}
+  .cat:active,.tile:active,.album button:active{transform:scale(.97)}
+  .seg button:active{transform:scale(.96)}
+  .fav[aria-pressed="true"] svg{animation:heartPop .45s var(--spring)}
+  @keyframes heartPop{0%{transform:scale(.6)}60%{transform:scale(1.25)}100%{transform:none}}
+
+  /* screens that used to pop in */
+  .review.show{animation:fadeIn .22s ease-out}
+  .review.show > img{animation:zoomSettle .55s var(--out)}
+  .review.show .review-scroll,.review.show .review-actions{animation:sheetUp .42s .06s var(--out) backwards}
+  .profile.show{animation:fadeIn .2s ease-out}
+  .profile.show .phead,.profile.show .pbody,.profile.show .pfoot{animation:sheetUp .4s var(--out) backwards}
+  .profile.show .pbody{animation-delay:.04s}.profile.show .pfoot{animation-delay:.08s}
+  .dlg.show{animation:fadeIn .22s ease-out}
+  .dlg.show .dbox{animation:sheetUp .38s var(--out)}
+  .empty{animation:fadeUp .35s var(--out)}
+  .notice.show > div{animation:fadeUp .4s var(--out)}
+  .tile img{opacity:0;transition:opacity .35s ease}
+  .tile img.ld{opacity:1}
+  .tile.tin{animation:tileIn .5s var(--out) backwards}
+  .pin.pop .face{animation:pinPop .45s var(--spring) backwards;animation-delay:min(var(--pd,0ms),360ms)}
+  .gps.ok i{animation:pulse 2.2s ease-out infinite}
+  #dtitle{transition:opacity .2s}
+
+  /* Loading screen */
+  .splash{position:fixed;inset:0;z-index:200;background:#000;display:grid;place-items:center;transition:opacity .45s ease,transform .6s var(--out)}
+  .splash.out{opacity:0;transform:scale(1.06);pointer-events:none}
+  .splash .wm{display:flex;align-items:center;font-weight:900;font-stretch:125%;font-size:46px;letter-spacing:-.02em;color:#fff}
+  .splash .wm span{display:inline-block;animation:fadeUp .5s var(--out) backwards;animation-delay:calc(var(--i) * 38ms)}
+  .splash .sdot{width:11px;height:11px;border-radius:50%;background:var(--signal);margin:14px 0 0 5px;align-self:flex-start;
+    animation:dotIn .5s .34s var(--spring) backwards,pulse 1.6s .8s ease-out infinite}
+  @keyframes dotIn{from{transform:scale(0);opacity:0}}
+  .splash .tag{position:absolute;bottom:calc(var(--safe-b) + 46px);left:0;right:0;text-align:center;font-size:13px;font-weight:600;color:rgba(255,255,255,.45);
+    letter-spacing:.02em;animation:fadeIn .5s .45s ease backwards}
   @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body>
 
+<div class="splash" id="splash" aria-hidden="true">
+  <div class="wm"><span style="--i:0">f</span><span style="--i:1">l</span><span style="--i:2">i</span><span style="--i:3">c</span><span style="--i:4">m</span><span style="--i:5">a</span><span style="--i:6">p</span><i class="sdot"></i></div>
+  <div class="tag">find it. pin it. shoot it later.</div>
+</div>
 <video id="cam" autoplay playsinline muted></video>
 <canvas id="canvas" hidden></canvas>
 <div class="flash" id="flash"></div>
@@ -436,6 +485,7 @@
     <div class="empty" id="empty"></div>
   </div>
   <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <span class="tabdot" id="tabdot"></span>
     <svg class="swipehint" viewBox="0 0 18 10" aria-hidden="true"><path d="M2 8l7-6 7 6"/></svg>
     <button data-t="feed" aria-current="false">feed</button>
     <button data-t="map" aria-current="true">map</button>
@@ -547,6 +597,16 @@
   };
 
   const $ = id => document.getElementById(id);
+  const RM = matchMedia('(prefers-reduced-motion: reduce)');
+  const anim = (el, kf, o) => (!el || RM.matches || !el.animate) ? null : el.animate(kf, Object.assign({ easing:'cubic-bezier(.2,.8,.2,1)' }, o));
+  // Play an exit animation, then actually hide it
+  function leave(el, cls, kf, dur = 200, after){
+    if(!el.classList.contains(cls)) return after && after();
+    const a = anim(el, kf || [{ opacity:1 }, { opacity:0 }], { duration:dur, easing:'ease-in', fill:'forwards' });
+    const go = () => { el.classList.remove(cls); if(a) a.cancel(); if(after) after(); };
+    if(a) a.onfinish = go; else go();
+  }
+  const stagger = (els, kf, step = 35, max = 14) => [...els].slice(0, max).forEach((e, i) => anim(e, kf, { duration:420, delay:i * step, fill:'backwards' }));
   const video = $('cam'), canvas = $('canvas'), drawer = $('drawer');
   let facing = 'environment', stream = null, lastFix = null, heading = null, orientationAsked = false;
   let spots = [], urls = new Map();
@@ -727,7 +787,7 @@
   }
   function closeReview(){
     if(editing && editing.mode === 'new') URL.revokeObjectURL(editing.url);
-    $('review').classList.remove('show'); editing = null;
+    leave($('review'), 'show', [{ opacity:1, transform:'none' }, { opacity:0, transform:'translateY(24px)' }], 220); editing = null;
   }
   $('cancelBtn').onclick = closeReview;
   $('saveBtn').onclick = async () => {
@@ -739,6 +799,7 @@
         const s = { id:String(editing.ts), ts:editing.ts, lat:editing.fix.lat, lng:editing.fix.lng, acc:editing.fix.acc,
           heading:editing.heading, note:$('noteInput').value.trim(), tags:editing.tags, blob:editing.blob };
         await putSpot(s); spots.unshift(s); closeReview(); updateCounts(); toast('Spot saved');
+        anim($('pullBtn'), [{ transform:'scale(1)' }, { transform:'scale(1.18)' }, { transform:'scale(1)' }], { duration:520, delay:180, easing:'cubic-bezier(.34,1.45,.5,1)' });
       }else{
         const s = editing.spot; s.note = $('noteInput').value.trim(); s.tags = editing.tags;
         await putSpot(s); syncCloud(s); closeReview(); refresh(); showSheet(s); toast('Changes saved');
@@ -796,9 +857,15 @@
     if(v !== view) setView(v);
     else if(v === 'map') setMine(!mineSheet.classList.contains('open'));
   });
+  const ORDER = { feed:0, map:1, explore:1, profile:2 };
+  function moveTabDot(){
+    const b = $('tabbar').querySelector('[aria-current="true"]'); if(!b) return;
+    $('tabdot').style.left = (b.offsetLeft + b.offsetWidth / 2) + 'px';
+  }
   function setView(v){
     endAdjust(); hideSheet();
     const was = view; view = v;
+    const dir = Math.sign(ORDER[v] - ORDER[was]);
     if(v === 'map' || v === 'explore') mapScope = v;
     drawer.dataset.view = v;
     const tab = v === 'explore' ? 'map' : v;
@@ -815,12 +882,23 @@
     if(v === 'profile') loadMine();
     if(v === 'feed' && !feed.length && !feedLoading){ if(!lastFix) feedSort = 'new'; loadFeed(true); }
     else if(v === 'map' && was === 'explore') fitPins();
+    moveTabDot();
+    // slide the new section in from the side you're heading toward
+    const panel = v === 'feed' ? $('feed') : v === 'profile' ? $('ptab') : $('map');
+    if(dir) anim(panel, [{ opacity:0, transform:`translateX(${dir * 34}px)` }, { opacity:1, transform:'none' }], { duration:340 });
+    if(dir) anim($('dhead'), [{ opacity:.4 }, { opacity:1 }], { duration:260 });
+    if(v === 'profile') stagger($('ptab').querySelectorAll('.album button'), [{ opacity:0, transform:'scale(.92)' }, { opacity:1, transform:'none' }]);
+    if((v === 'map' || v === 'explore') && was !== v) popPins = true, drawPins(visible());
   }
   const base = () => view === 'explore' ? pub.filter(p => !hiddenPub.has(p.id)) : view === 'feed' ? feed.filter(p => !hiddenPub.has(p.id)) : view === 'profile' ? [] : spots;
 
   /* Swipe-up sheet on the map: every photo you've taken */
   const mineSheet = $('mineSheet');
-  function setMine(open){ mineSheet.classList.toggle('open', open); drawer.classList.toggle('mine-open', open); if(open) hideSheet(); }
+  function setMine(open){
+    const was = mineSheet.classList.contains('open');
+    mineSheet.classList.toggle('open', open); drawer.classList.toggle('mine-open', open);
+    if(open){ hideSheet(); if(!was) stagger($('album').querySelectorAll('button'), [{ opacity:0, transform:'translateY(18px) scale(.94)' }, { opacity:1, transform:'none' }], 28, 18); }
+  }
   // Drag it like the spot pages: grab the handle to pull it up, or drag anywhere on it
   // (once the photos are scrolled to the top) to pull it back down
   (() => {
@@ -932,7 +1010,7 @@
   $('filters').addEventListener('click', e => {
     const c = e.target.closest('.chip'); if(!c) return;
     filters.has(c.dataset.k) ? filters.delete(c.dataset.k) : filters.add(c.dataset.k);
-    refresh(); fitPins();
+    popPins = true; refresh(); fitPins();
   });
   $('album').addEventListener('click', e => {
     const b = e.target.closest('button[data-id]'); if(!b) return;
@@ -1010,7 +1088,7 @@
   }
   /* Photo pins: overlapping photos gather into a layered collage, then slide
      apart toward their real spots as you zoom in */
-  let pinMap = new Map();
+  let pinMap = new Map(), popPins = true;
   const GROUP_R = 64;
   const SLOTS = [[0, 0, 0], [40, -30, 7], [-40, 26, -6], [36, 34, 4]];
   function drawPins(list){
@@ -1020,13 +1098,15 @@
     list.forEach(s => {
       if(adjusting && adjusting.s === s) return;
       const el = document.createElement('div'), img = imgFor(s), it = { s, el };
-      el.className = 'pin' + (s.fav ? ' fav' : '') + (s.mine ? ' mine' : ''); el.dataset.size = 'single';
+      el.className = 'pin' + (s.fav ? ' fav' : '') + (s.mine ? ' mine' : '') + (popPins ? ' pop' : ''); el.dataset.size = 'single';
+      if(popPins) el.style.setProperty('--pd', (markers.length * 30) + 'ms');
       el.innerHTML = (s.heading != null ? `<div class="cone" style="transform:rotate(${s.heading}deg)"></div>` : '') +
         `<button class="face${img ? '' : ' blank'}" aria-label="${esc(s.note || 'Saved spot')}">${img ? `<img src="${img}" alt="">` : ''}</button><span class="badge"></span>`;
       el.onclick = ev => { ev.stopPropagation(); tapPin(it); };
       it.m = new mapboxgl.Marker({ element:el }).setLngLat([s.lng, s.lat]).addTo(map);
       markers.push(it.m); pinMap.set(s.id, it);
     });
+    if(popPins){ popPins = false; const els = markers.map(m => m.getElement()); setTimeout(() => els.forEach(e => e.classList.remove('pop')), 900); }
     layoutPins();
   }
   function tapPin(it){
@@ -1306,7 +1386,7 @@
   /* Dialogs */
   let dlgAct = {};
   function openDlg(html, acts){ $('dlgBox').innerHTML = html; dlgAct = acts; $('dlg').classList.add('show'); }
-  function closeDlg(){ $('dlg').classList.remove('show'); dlgAct = {}; }
+  function closeDlg(){ dlgAct = {}; anim($('dlgBox'), [{ transform:'none' }, { transform:'translateY(60px)' }], { duration:200, easing:'ease-in' }); leave($('dlg'), 'show', null, 200); }
   $('dlg').addEventListener('click', e => {
     if(e.target === $('dlg')) return closeDlg();
     const b = e.target.closest('[data-a]'); if(b && dlgAct[b.dataset.a]) dlgAct[b.dataset.a](b);
@@ -1346,7 +1426,7 @@
   const PAGE = 30;
   async function loadFeed(reset){
     if(!sb){ feedErr = 'The feed is offline right now. Check your connection.'; return refresh(); }
-    if(reset){ feed = []; feedDone = false; $('feed').scrollTop = 0; }
+    if(reset){ feed = []; feedDone = false; $('feed').scrollTop = 0; seenTiles.clear(); }
     if(feedDone || feedLoading) return;
     if(feedSort === 'near' && !lastFix){ feedSort = 'new'; toast('Turn on location to sort by nearby'); }
     const seq = ++feedSeq; feedLoading = true; feedErr = ''; renderSort(); renderEmpty();
@@ -1394,6 +1474,7 @@
     ['quiet', 'Quiet spots', s => !!s.tags && (s.tags.visibility === 'hidden' || s.tags.movement === 'still')]
   ];
   let feedCat = 'all';
+  const seenTiles = new Set();
   const catFn = () => (CATS.find(c => c[0] === feedCat) || CATS[0])[2];
   function renderFeed(all, list){
     renderSort();
@@ -1411,7 +1492,8 @@
     const cols = [[], []];
     list.forEach((s, i) => {
       const meta = [away(s), ago(s.ts)].filter(Boolean).join(' · ');
-      cols[i % 2].push(`<button class="tile" data-id="${s.id}"><img src="${signed.get(s.photo_path) || ''}" alt="" loading="lazy">
+      const fresh = !seenTiles.has(s.id); if(fresh) seenTiles.add(s.id);
+      cols[i % 2].push(`<button class="tile${fresh ? ' tin' : ''}" data-id="${s.id}"${fresh ? ` style="animation-delay:${Math.min(i, 10) * 45}ms"` : ''}><img src="${signed.get(s.photo_path) || ''}" alt="" loading="lazy" onload="this.classList.add('ld')">
         ${s.mine && s.hidden ? '<em class="tbadge">Under review</em>' : ''}
         <div class="tcap"><b>${esc(s.note || 'Untitled spot')}</b><small>${s.username ? '@' + esc(s.username) + ' · ' : ''}${meta}</small></div></button>`);
     });
@@ -1420,7 +1502,7 @@
   }
   $('cats').addEventListener('click', e => {
     const b = e.target.closest('[data-c]'); if(!b || b.dataset.c === feedCat) return;
-    feedCat = b.dataset.c; $('feed').scrollTop = 0; refresh();
+    feedCat = b.dataset.c; $('feed').scrollTop = 0; seenTiles.clear(); refresh();
   });
   $('feedList').addEventListener('click', e => {
     if(e.target.closest('#feedMore')) return loadFeed(false);
@@ -1548,6 +1630,7 @@
     await enrich(r.data, 'thumb_path');
     if(seq !== mineSeq) return;
     mine = r.data.map(toPub); mineLoading = false; refresh();
+    if(view === 'profile') stagger($('ptab').querySelectorAll('.album button'), [{ opacity:0, transform:'scale(.92)' }, { opacity:1, transform:'none' }]);
   }
   function renderProfileTab(){
     const u = avatarURL(), name = (cloudProfile && cloudProfile.username) || profile.username;
@@ -1583,7 +1666,8 @@
     $('profile').classList.add('show');
     if(msg) toast(msg);
   }
-  $('closeProfile').onclick = () => $('profile').classList.remove('show');
+  const closeProfileUI = () => leave($('profile'), 'show', [{ opacity:1, transform:'none' }, { opacity:0, transform:'translateY(30px)' }], 220);
+  $('closeProfile').onclick = closeProfileUI;
   $('pUser').addEventListener('input', e => { e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''); });
   $('photoInput').addEventListener('change', async e => {
     const f = e.target.files[0]; if(!f) return;
@@ -1611,7 +1695,7 @@
     profile.username = u; profile.location = $('pLoc').value.trim(); profile.email = em;
     if(newPhoto !== undefined){ if(profile._url) URL.revokeObjectURL(profile._url); profile._url = null; profile.photo = newPhoto; }
     const { _url, ...store } = profile;
-    try{ await putProfile(store); renderAvatar(); $('profile').classList.remove('show'); refresh(); toast('Profile saved'); }
+    try{ await putProfile(store); renderAvatar(); closeProfileUI(); refresh(); toast('Profile saved'); }
     catch(err){ toast('Could not save profile'); }
   };
 
@@ -1705,6 +1789,21 @@
     setTimeout(() => location.replace(location.pathname + '?v=' + encodeURIComponent(pendingUpdate)), 600);
   }
   setTimeout(checkUpdate, 1500);
+
+  /* Loading screen: at least a beat so it reads as intentional, gone as soon as the camera is live */
+  (() => {
+    const sp = $('splash'), t0 = Date.now(); let done = false;
+    const hide = () => {
+      if(done) return; done = true;
+      setTimeout(() => { sp.classList.add('out'); setTimeout(() => sp.remove(), 650); }, Math.max(0, 850 - (Date.now() - t0)));
+    };
+    video.addEventListener('playing', hide, { once:true });
+    new MutationObserver(() => { if($('camNotice').classList.contains('show')) hide(); }).observe($('camNotice'), { attributes:true });
+    setTimeout(hide, 1800);
+    if(RM.matches) setTimeout(hide, 0);
+  })();
+  addEventListener('resize', () => moveTabDot());
+  setTimeout(moveTabDot, 0);
 
   (async () => {
     startCamera(); startGPS();
