@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
 <title>FlicMap</title>
-<meta name="flicmap-version" content="05">
+<meta name="flicmap-version" content="06">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css" rel="stylesheet">
@@ -936,6 +936,42 @@
     el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
     $('mineHead').addEventListener('click', () => { if(!dragged) setMine(!el.classList.contains('open')); dragged = false; });
   })();
+  // Edge swipes: from the right edge of Feed swipe left, or from the left edge of Profile swipe right, to get to the map
+  (() => {
+    const EDGE = 26;
+    let x0 = null, y0 = 0, dx = 0, t0 = 0, on = false, panel = null, dir = 0;
+    drawer.addEventListener('touchstart', e => {
+      x0 = null; if(!drawerOpen || $('sheet').classList.contains('show')) return;
+      const x = e.touches[0].clientX;
+      if(view === 'feed' && x > innerWidth - EDGE){ dir = -1; panel = $('feed'); }
+      else if(view === 'profile' && x < EDGE){ dir = 1; panel = $('ptab'); }
+      else return;
+      x0 = x; y0 = e.touches[0].clientY; t0 = Date.now(); dx = 0; on = false;
+    }, { passive:true });
+    drawer.addEventListener('touchmove', e => {
+      if(x0 == null) return;
+      const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+      if(!on){
+        if(Math.max(Math.abs(mx), Math.abs(my)) < 8) return;
+        if(Math.abs(mx) > Math.abs(my) && Math.sign(mx) === dir) on = true; else { x0 = null; return; }
+      }
+      dx = dir > 0 ? Math.max(0, mx) : Math.min(0, mx);
+      panel.style.transition = 'none';
+      panel.style.transform = `translateX(${dx * .6}px)`;
+      panel.style.opacity = String(1 - Math.min(.6, Math.abs(dx) / 500));
+      e.preventDefault();
+    }, { passive:false });
+    const end = () => {
+      if(x0 == null) return; x0 = null; if(!on) return;
+      const v = Math.abs(dx) / Math.max(1, Date.now() - t0), go = Math.abs(dx) > 80 || v > .45;
+      panel.style.transition = 'transform .3s cubic-bezier(.2,.8,.2,1),opacity .3s';
+      panel.style.transform = ''; panel.style.opacity = '';
+      const p = panel; setTimeout(() => { p.style.transition = ''; }, 320);
+      if(go) setView(mapScope);
+    };
+    drawer.addEventListener('touchend', end); drawer.addEventListener('touchcancel', end);
+  })();
+
   // The floating menu takes two gestures: slide sideways to move between feed / map / profile,
   // or (on the map) swipe up to pull your photos up and down to put them away
   (() => {
